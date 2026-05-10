@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"/Applications/Ableton Live 12 Suite.app\" -name \"*.pyi\" -o -name \"*.xml\" -o -name \"*.json\" 2>/dev/null | grep -i \"browser\\\\|live\\\\|api\" | head -20)",
+      "Read(//Applications/Ableton Live 12 Suite.app/**)",
+      "Bash(find ~/Music/Ableton -name \"*.db\" -o -name \"*.sqlite\" -o -name \"*.sqlite3\" 2>/dev/null | head -20)",
+      "Read(//Users/livin2rave/Music/Ableton/**)",
+      "Bash(find ~/Library -name \"*.db\" -path \"*Ableton*\" 2>/dev/null | head -20)",
+      "Read(//Users/livin2rave/Library/**)",
+      "Bash(# So the full path would be /Volumes/Ableton/FactoryPacks/Build and Drop/Samples/One Shots/Kick/Kick 808 Overdriven.aif *)",
+      "Read(//Volumes/Ableton/FactoryPacks/Build and Drop/Samples/One Shots/Kick/**)",
+      "Bash(# Both paths exist on disk - verify *)",
+      "Read(//Applications/Ableton Live 12 Beta.app/Contents/App-Resources/Core Library/Samples/One Shots/Vocal/**)",
+      "Bash(DB=\"/Users/livin2rave/Library/Application Support/Ableton/Live Database/Live-files-12300.db\" *)",
+      "Read(//opt/anaconda3/lib/python3.12/site-packages/Live-stubs/**)",
+      "Bash(mkdir -p ~/.claude/skills/ableton-mcp)",
+      "Bash(unzip -p /Users/livin2rave/my_private_code/ableton-mcp/ableton-mcp.skill ableton-mcp/SKILL.md)",
+      "Bash(head -5 ~/.claude/skills/ableton-mcp/SKILL.md)",
+      "Read(//Users/livin2rave/.claude/skills/ableton-mcp/**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
