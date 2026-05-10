@@ -233,7 +233,7 @@ class AbletonMCP(ControlSurface):
                                  "create_audio_track", "set_track_mixer", "set_track_mute",
                                  "set_track_solo", "duplicate_clip", "delete_clip",
                                  "delete_track", "set_device_param", "undo", "save_set",
-                                 "set_scale_mode"]:
+                                 "save_set_as", "set_scale_mode"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -325,6 +325,9 @@ class AbletonMCP(ControlSurface):
                             result = self._undo()
                         elif command_type == "save_set":
                             result = self._save_set()
+                        elif command_type == "save_set_as":
+                            file_path = params.get("file_path", "")
+                            result = self._save_set_as(file_path)
                         elif command_type == "set_scale_mode":
                             root_note = params.get("root_note", None)
                             scale_name = params.get("scale_name", None)
@@ -1073,12 +1076,23 @@ class AbletonMCP(ControlSurface):
             raise
 
     def _save_set(self):
-        """Save the current Live set"""
+        """Save the current Live set in place (equivalent to Ctrl+S)."""
         try:
-            self._song.save()
-            return {"saved": True}
+            self._song.save_as(self._song.file_path)
+            return {"saved": True, "file_path": self._song.file_path}
         except Exception as e:
             self.log_message("Error saving set: " + str(e))
+            raise
+
+    def _save_set_as(self, file_path):
+        """Save the current Live set to a new path."""
+        try:
+            if not file_path:
+                raise ValueError("file_path is required")
+            self._song.save_as(file_path)
+            return {"saved": True, "file_path": file_path}
+        except Exception as e:
+            self.log_message("Error saving set as: " + str(e))
             raise
 
     def _get_playback_position(self):

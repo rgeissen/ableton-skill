@@ -878,14 +878,32 @@ def undo(ctx: Context) -> str:
 
 @mcp.tool()
 def save_set(ctx: Context) -> str:
-    """Save the current Ableton Live set."""
+    """Save the current Ableton Live set in place (equivalent to Ctrl+S)."""
     try:
         ableton = get_ableton_connection()
         result = ableton.send_command("save_set")
-        return "Set saved"
+        return f"Set saved: {result.get('file_path', '')}"
     except Exception as e:
         logger.error(f"Error saving set: {str(e)}")
         return f"Error saving set: {str(e)}"
+
+
+@mcp.tool()
+def save_set_as(ctx: Context, file_path: str) -> str:
+    """
+    Save the current Ableton Live set to a new file path.
+
+    Parameters:
+    - file_path: Absolute path for the new file, including .als extension
+                 (e.g. '/Users/me/Music/Ableton/DeepHouse_BMinor_v01.als')
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("save_set_as", {"file_path": file_path})
+        return f"Set saved as: {result.get('file_path', file_path)}"
+    except Exception as e:
+        logger.error(f"Error saving set as: {str(e)}")
+        return f"Error saving set as: {str(e)}"
 
 
 @mcp.tool()
