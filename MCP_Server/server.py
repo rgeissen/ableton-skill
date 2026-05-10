@@ -3,6 +3,9 @@ from mcp.server.fastmcp import FastMCP, Context
 import socket
 import json
 import logging
+import sqlite3
+import glob
+import os
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Dict, Any, List, Union
@@ -948,6 +951,254 @@ def set_scale_mode(
     except Exception as e:
         logger.error(f"Error setting scale mode: {str(e)}")
         return f"Error setting scale mode: {str(e)}"
+
+
+# ---------------------------------------------------------------------------
+# Tag-based browser search (reads Ableton's SQLite DB directly)
+# ---------------------------------------------------------------------------
+
+_KEYW_TYPE = 1801812343  # FourCC 'keyw' — tag nodes in the files table
+
+
+def _get_ableton_db() -> str:
+    pattern = os.path.expanduser(
+        "~/Library/Application Support/Ableton/Live Database/Live-files-*.db"
+    )
+    dbs = sorted(glob.glob(pattern), reverse=True)
+    if not dbs:
+        raise FileNotFoundError(
+            "No Ableton Live database found. Make sure Ableton has been opened at least once."
+        )
+    return dbs[0]
+
+
+def _category_filter(category: str) -> tuple:
+    """Return (sql_fragment, params) to restrict by browser category."""
+    c = category.lower().replace(" ", "_").replace("-", "_")
+    ADG = 1633969965   # .adg rack
+    ADV = 1633973805   # .adv preset
+    AMP = 1634562093   # .amp audio-effect preset
+    ALC = 1634493229   # .alc clip / M4L device
+    ALS = 1634497325   # .als live set
+    AGR = 1634169389   # .agr groove
+    SCL = 1935895597   # .scl tuning
+    WAV = 2002875949
+    AIF = 1634297446
+    FLC = 1718378851
+    MP3 = 1836069677
+    REX = 1919252525
+    PLG = 1886156135   # AU/VST plugin
+    VSP = 1987277936   # VST preset
+    VSB = 1987277922
+    VS3 = 1987277875
+
+    if c in ("all", ""):
+        return "", []
+    if c in ("sounds", "instruments"):
+        return ("(f.file_type = ? OR (f.file_type = ? AND f.device_type = 1))",
+                [ADV, ADG])
+    if c == "drums":
+        return ("(f.file_type = ? AND f.device_id LIKE ?)",
+                [ADG, "%DrumGroup%"])
+    if c in ("audio_effects", "audio_effect"):
+        return ("((f.file_type = ? AND f.device_type = 2) OR f.file_type = ?)",
+                [ADG, AMP])
+    if c in ("midi_effects", "midi_effect"):
+        return ("(f.file_type = ? AND f.device_type = 4)",
+                [ADG])
+    if c in ("max_for_live", "m4l"):
+        return ("(f.file_type = ?)", [ALC])
+    if c in ("plugins", "plug_ins"):
+        return ("(f.file_type IN (?,?,?,?))", [PLG, VSP, VSB, VS3])
+    if c == "clips":
+        return ("(f.file_type IN (?,?))", [ALC, ALS])
+    if c == "samples":
+        return ("(f.file_type IN (?,?,?,?,?))", [WAV, AIF, FLC, MP3, REX])
+    if c == "grooves":
+        return ("(f.file_type = ?)", [AGR])
+    if c == "tunings":
+        return ("(f.file_type = ?)", [SCL])
+    raise ValueError(
+        f"Unknown category '{category}'. Valid values: all, sounds, instruments, "
+        "drums, audio_effects, midi_effects, max_for_live, plugins, clips, samples, grooves, tunings"
+    )
+
+
+def _human_type(file_type: int, device_id: str) -> str:
+    if file_type == 1633973805: return "preset"
+    if file_type == 1633969965:
+        if device_id and "DrumGroup"  in device_id: return "drum_rack"
+        if device_id and "audiofx"   in device_id: return "audio_effect_rack"
+        if device_id and "midifx"    in device_id: return "midi_effect_rack"
+        return "instrument_rack"
+    if file_type in (2002875949, 1634297446, 1718378851, 1836069677, 1919252525):
+        return "sample"
+    if file_type == 1634493229: return "clip_or_m4l"
+    if file_type == 1634497325: return "live_set"
+    if file_type == 1634169389: return "groove"
+    if file_type == 1935895597: return "tuning"
+    if file_type in (1987277936, 1886156135, 1987277922, 1987277875): return "plugin"
+    return "unknown"
+
+
+def _reconstruct_browser_path(conn, file_id: int) -> str:
+    """Build a browser-navigable path string from the ancestor chain."""
+    place_row = conn.execute("""
+        SELECT p.file_id, p.name
+        FROM places p
+        JOIN files f ON f.place_id = p.file_id
+        WHERE f.file_id = ?
+    """, (file_id,)).fetchone()
+
+    ancestors = conn.execute("""
+        SELECT f.file_id, f.name
+        FROM files f
+        JOIN ancestors a ON f.file_id = a.ancestor_id
+        WHERE a.file_id = ?
+        ORDER BY a.ancestor_id
+    """, (file_id,)).fetchall()
+
+    file_name = conn.execute(
+        "SELECT name FROM files WHERE file_id = ?", (file_id,)
+    ).fetchone()[0]
+
+    if not place_row:
+        return file_name
+
+    place_file_id, place_name = place_row
+    place_idx = next(
+        (i for i, (aid, _) in enumerate(ancestors) if aid == place_file_id), None
+    )
+    relative = [name for _, name in ancestors[place_idx + 1:]] if place_idx is not None else []
+    root = "user_library" if place_name == "User Library" else f"packs/{place_name}"
+    return "/".join([root] + relative + [file_name])
+
+
+@mcp.tool()
+def get_browser_tags(ctx: Context, category: str = "all") -> str:
+    """
+    Return all tag names available in Ableton's browser, read directly from
+    Ableton's local database (Ableton does not need to be running).
+
+    Parameters:
+    - category: Filter to tags used in a specific browser section.
+                One of: all (default), sounds, instruments, drums, audio_effects,
+                midi_effects, max_for_live, plugins, clips, samples, grooves, tunings
+    """
+    try:
+        db_path = _get_ableton_db()
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+        cat_sql, cat_params = _category_filter(category)
+
+        if cat_sql:
+            rows = conn.execute(f"""
+                SELECT DISTINCT tag.name
+                FROM files tag
+                JOIN keywords k  ON k.keyw_id  = tag.file_id
+                JOIN files f     ON k.file_id   = f.file_id
+                WHERE tag.file_type = ?
+                  AND {cat_sql}
+                ORDER BY tag.name
+            """, [_KEYW_TYPE] + cat_params).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT name FROM files WHERE file_type = ? ORDER BY name",
+                (_KEYW_TYPE,)
+            ).fetchall()
+
+        conn.close()
+        tags = [r[0] for r in rows]
+        return json.dumps({"category": category, "count": len(tags), "tags": tags}, indent=2)
+
+    except Exception as e:
+        logger.error(f"Error getting browser tags: {e}")
+        return f"Error getting browser tags: {e}"
+
+
+@mcp.tool()
+def search_by_tags(
+    ctx: Context,
+    tags: List[str],
+    category: str = "all",
+    limit: int = 50,
+) -> str:
+    """
+    Search Ableton's browser for content matching ALL supplied tags.
+    Reads directly from Ableton's local database — Ableton does not need to be running.
+
+    Parameters:
+    - tags:     One or more tag names (AND logic — results must carry every tag).
+                Use get_browser_tags to discover available tags.
+    - category: Restrict results to a browser section.
+                One of: all (default), sounds, instruments, drums, audio_effects,
+                midi_effects, max_for_live, plugins, clips, samples, grooves, tunings
+    - limit:    Maximum number of results to return (default 50).
+
+    Each result includes name, type, source (pack/library), all tags on that item,
+    and a browser_path you can pass to get_browser_items_at_path to load it.
+    """
+    try:
+        if not tags:
+            return "Error: provide at least one tag"
+
+        db_path = _get_ableton_db()
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+        cat_sql, cat_params = _category_filter(category)
+        n = len(tags)
+        tag_placeholders = ",".join("?" * n)
+
+        cat_clause = f"AND {cat_sql}" if cat_sql else ""
+
+        rows = conn.execute(f"""
+            SELECT f.file_id, f.name, f.file_type, f.device_id,
+                   p.name AS source
+            FROM files f
+            JOIN keywords k   ON k.file_id  = f.file_id
+            JOIN files tag    ON tag.file_id = k.keyw_id
+            LEFT JOIN places pl ON f.place_id = pl.file_id
+            LEFT JOIN files p   ON pl.file_id = p.file_id
+            WHERE tag.name IN ({tag_placeholders})
+              AND tag.file_type = ?
+              {cat_clause}
+            GROUP BY f.file_id
+            HAVING COUNT(DISTINCT tag.name) = ?
+            LIMIT ?
+        """, tags + [_KEYW_TYPE] + cat_params + [n, limit]).fetchall()
+
+        results = []
+        for file_id, name, file_type, device_id, source in rows:
+            # Fetch all tags on this file (not just the search tags)
+            item_tags = [r[0] for r in conn.execute("""
+                SELECT tag.name
+                FROM files tag
+                JOIN keywords k ON k.keyw_id = tag.file_id
+                WHERE k.file_id = ? AND tag.file_type = ?
+                ORDER BY tag.name
+            """, (file_id, _KEYW_TYPE)).fetchall()]
+
+            browser_path = _reconstruct_browser_path(conn, file_id)
+
+            results.append({
+                "name":         name,
+                "type":         _human_type(file_type, device_id or ""),
+                "source":       source or "unknown",
+                "tags":         item_tags,
+                "browser_path": browser_path,
+            })
+
+        conn.close()
+        return json.dumps({
+            "query_tags": tags,
+            "category":   category,
+            "count":      len(results),
+            "results":    results,
+        }, indent=2)
+
+    except Exception as e:
+        logger.error(f"Error searching by tags: {e}")
+        return f"Error searching by tags: {e}"
 
 
 # Main execution
