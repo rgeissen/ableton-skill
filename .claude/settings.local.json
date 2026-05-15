@@ -18,7 +18,14 @@
       "Bash(head -5 ~/.claude/skills/ableton-mcp/SKILL.md)",
       "Read(//Users/livin2rave/.claude/skills/ableton-mcp/**)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(mkdir -p /Users/livin2rave/my_private_code/ableton-mcp/.claude/skills/ableton-mcp)",
+      "Bash(cp ~/.claude/skills/ableton-mcp/SKILL.md /Users/livin2rave/my_private_code/ableton-mcp/.claude/skills/ableton-mcp/SKILL.md)",
+      "Bash(rm -rf ~/.claude/skills/ableton-mcp && echo \"removed user-level copy\")"
+    ],
+    "additionalDirectories": [
+      "/Users/livin2rave/.claude/skills/ableton-mcp"
     ]
   }
 }

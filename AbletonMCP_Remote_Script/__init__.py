@@ -320,7 +320,10 @@ class AbletonMCP(ControlSurface):
                             device_index = params.get("device_index", 0)
                             param_index = params.get("param_index", 0)
                             value = params.get("value", 0.0)
-                            result = self._set_device_param(track_index, device_index, param_index, value)
+                            chain_path = params.get("chain_path", None)
+                            return_track_index = params.get("return_track_index", None)
+                            is_master = params.get("is_master", False)
+                            result = self._set_device_param(track_index, device_index, param_index, value, chain_path, return_track_index, is_master)
                         elif command_type == "undo":
                             result = self._undo()
                         elif command_type == "set_scale_mode":
@@ -379,7 +382,16 @@ class AbletonMCP(ControlSurface):
             elif command_type == "get_device_params":
                 track_index = params.get("track_index", 0)
                 device_index = params.get("device_index", 0)
-                response["result"] = self._get_device_params(track_index, device_index)
+                chain_path = params.get("chain_path", None)
+                return_track_index = params.get("return_track_index", None)
+                is_master = params.get("is_master", False)
+                response["result"] = self._get_device_params(track_index, device_index, chain_path, return_track_index, is_master)
+            elif command_type == "get_drum_rack_pads":
+                track_index = params.get("track_index", 0)
+                device_index = params.get("device_index", 0)
+                return_track_index = params.get("return_track_index", None)
+                is_master = params.get("is_master", False)
+                response["result"] = self._get_drum_rack_pads(track_index, device_index, return_track_index, is_master)
             elif command_type == "get_playback_position":
                 response["result"] = self._get_playback_position()
             elif command_type == "get_scale_mode":
@@ -1019,39 +1031,147 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error getting clip notes: " + str(e))
             raise
 
-    def _get_device_params(self, track_index, device_index):
-        """Get all parameters of a device"""
+    def _resolve_track(self, track_index=0, return_track_index=None, is_master=False):
+        """Return the correct track object based on type selector."""
+        if is_master:
+            return self._song.master_track
+        if return_track_index is not None:
+            tracks = self._song.return_tracks
+            if return_track_index < 0 or return_track_index >= len(tracks):
+                raise IndexError("Return track index out of range")
+            return tracks[return_track_index]
+        tracks = self._song.tracks
+        if track_index < 0 or track_index >= len(tracks):
+            raise IndexError("Track index out of range")
+        return tracks[track_index]
+
+    def _resolve_device(self, track, device_index, chain_path):
+        """Walk chain_path steps from a top-level device to the target nested device.
+
+        Each step is a dict with:
+          chain_index  (int, required)
+          device_index (int, default 0) — which device inside that chain
+          pad_note     (int, optional)  — if present, enter a drum rack pad first
+        """
+        if device_index < 0 or device_index >= len(track.devices):
+            raise IndexError("Device index out of range")
+        device = track.devices[device_index]
+        for step in chain_path:
+            pad_note = step.get("pad_note", None)
+            chain_idx = step.get("chain_index", 0)
+            dev_idx = step.get("device_index", 0)
+            if pad_note is not None:
+                if not device.can_have_drum_pads:
+                    raise ValueError("chain_path step has pad_note but device is not a drum rack")
+                pad = device.drum_pads[pad_note]
+                if chain_idx >= len(pad.chains):
+                    raise IndexError("chain_index {0} out of range for pad {1}".format(chain_idx, pad_note))
+                chain = pad.chains[chain_idx]
+            else:
+                if not device.can_have_chains:
+                    raise ValueError("chain_path step has chain_index but device has no chains")
+                if chain_idx >= len(device.chains):
+                    raise IndexError("chain_index {0} out of range".format(chain_idx))
+                chain = device.chains[chain_idx]
+            if dev_idx >= len(chain.devices):
+                raise IndexError("device_index {0} out of range in chain".format(dev_idx))
+            device = chain.devices[dev_idx]
+        return device
+
+    def _device_contents_summary(self, device, current_chain_path):
+        """Return a progressive-disclosure map of a rack's immediate children.
+
+        Each nested device entry includes a ready-to-use chain_path that can be
+        passed directly to get_device_params / set_device_param.
+        """
+        if device.can_have_drum_pads:
+            pads = []
+            for pad in device.drum_pads:
+                if not pad.chains:
+                    continue
+                pad_chains = []
+                for ci, chain in enumerate(pad.chains):
+                    devs = []
+                    for di, d in enumerate(chain.devices):
+                        next_path = current_chain_path + [{"pad_note": pad.note, "chain_index": ci, "device_index": di}]
+                        devs.append({
+                            "name": d.name,
+                            "class_name": d.class_name,
+                            "chain_path": next_path,
+                            "has_nested_devices": d.can_have_chains or d.can_have_drum_pads
+                        })
+                    pad_chains.append({"chain_index": ci, "name": chain.name, "devices": devs})
+                pads.append({"note": pad.note, "name": pad.name, "mute": pad.mute, "solo": pad.solo, "chains": pad_chains})
+            return {"type": "drum_rack", "drum_pads": pads}
+        elif device.can_have_chains:
+            chains = []
+            for ci, chain in enumerate(device.chains):
+                devs = []
+                for di, d in enumerate(chain.devices):
+                    next_path = current_chain_path + [{"chain_index": ci, "device_index": di}]
+                    devs.append({
+                        "name": d.name,
+                        "class_name": d.class_name,
+                        "chain_path": next_path,
+                        "has_nested_devices": d.can_have_chains or d.can_have_drum_pads
+                    })
+                chains.append({"chain_index": ci, "name": chain.name, "devices": devs})
+            return {"type": "rack", "chains": chains}
+        return None
+
+    def _get_device_params(self, track_index, device_index, chain_path=None, return_track_index=None, is_master=False):
+        """Get parameters of any device. chain_path navigates into nested racks at any depth.
+        When the resolved device is itself a rack, includes a contents summary with
+        ready-to-use chain_path values for each nested device."""
         try:
-            if track_index < 0 or track_index >= len(self._song.tracks):
-                raise IndexError("Track index out of range")
-            track = self._song.tracks[track_index]
-            if device_index < 0 or device_index >= len(track.devices):
-                raise IndexError("Device index out of range")
-            device = track.devices[device_index]
-            params = []
-            for i, p in enumerate(device.parameters):
-                params.append({
-                    "index": i,
-                    "name": p.name,
-                    "value": p.value,
-                    "min": p.min,
-                    "max": p.max,
-                    "is_quantized": p.is_quantized
-                })
-            return {"device_name": device.name, "param_count": len(params), "parameters": params}
+            track = self._resolve_track(track_index, return_track_index, is_master)
+            chain_path = chain_path or []
+            device = self._resolve_device(track, device_index, chain_path)
+            params = [
+                {"index": i, "name": p.name, "value": p.value, "min": p.min, "max": p.max, "is_quantized": p.is_quantized}
+                for i, p in enumerate(device.parameters)
+            ]
+            result = {
+                "device_name": device.name,
+                "class_name": device.class_name,
+                "chain_path": chain_path,
+                "param_count": len(params),
+                "parameters": params
+            }
+            contents = self._device_contents_summary(device, chain_path)
+            if contents:
+                result["contents"] = contents
+                result["hint"] = "Pass chain_path from any nested device entry to get its parameters"
+            return result
         except Exception as e:
             self.log_message("Error getting device params: " + str(e))
             raise
 
-    def _set_device_param(self, track_index, device_index, param_index, value):
-        """Set a parameter value on a device"""
+    def _get_drum_rack_pads(self, track_index, device_index, return_track_index=None, is_master=False):
+        """Get drum pad assignments (note, name, mute, solo) for a DrumGroupDevice."""
         try:
-            if track_index < 0 or track_index >= len(self._song.tracks):
-                raise IndexError("Track index out of range")
-            track = self._song.tracks[track_index]
+            track = self._resolve_track(track_index, return_track_index, is_master)
             if device_index < 0 or device_index >= len(track.devices):
                 raise IndexError("Device index out of range")
             device = track.devices[device_index]
+            if not device.can_have_drum_pads:
+                raise ValueError("Device is not a drum rack")
+            pads = []
+            for pad in device.drum_pads:
+                if pad.chains:
+                    chain_names = [c.name for c in pad.chains]
+                    pads.append({"note": pad.note, "name": pad.name, "mute": pad.mute, "solo": pad.solo, "chains": chain_names})
+            return {"device_name": device.name, "pad_count": len(pads), "pads": pads}
+        except Exception as e:
+            self.log_message("Error getting drum rack pads: " + str(e))
+            raise
+
+    def _set_device_param(self, track_index, device_index, param_index, value, chain_path=None, return_track_index=None, is_master=False):
+        """Set a parameter on any device. Accepts the same chain_path as _get_device_params."""
+        try:
+            track = self._resolve_track(track_index, return_track_index, is_master)
+            chain_path = chain_path or []
+            device = self._resolve_device(track, device_index, chain_path)
             if param_index < 0 or param_index >= len(device.parameters):
                 raise IndexError("Parameter index out of range")
             param = device.parameters[param_index]

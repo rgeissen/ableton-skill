@@ -8,7 +8,7 @@ import glob
 import os
 from dataclasses import dataclass
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Dict, Any, List, Union
+from typing import AsyncIterator, Dict, Any, List, Optional, Union
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -822,17 +822,40 @@ def get_clip_notes(ctx: Context, track_index: int, clip_index: int) -> str:
 
 
 @mcp.tool()
-def get_device_params(ctx: Context, track_index: int, device_index: int) -> str:
+def get_device_params(
+    ctx: Context,
+    track_index: int = 0,
+    device_index: int = 0,
+    chain_path: Optional[list] = None,
+    return_track_index: Optional[int] = None,
+    is_master: bool = False,
+) -> str:
     """
-    Get all parameters of a device on a track.
+    Get parameters of any device — regular tracks, return tracks, or the master track —
+    including devices nested at any depth inside racks and drum racks.
 
-    Parameters:
-    - track_index: The index of the track
-    - device_index: The index of the device on the track
+    Progressive disclosure: call with only track/device indices to get that device's
+    own parameters plus a 'contents' map of its nested devices. Each nested device entry
+    includes a ready-to-use 'chain_path' — pass it unchanged in the next call to drill in.
+
+    chain_path format — a list of steps, each a dict:
+      {"chain_index": N, "device_index": N}             — for Instrument/Effect Racks
+      {"pad_note": N, "chain_index": N, "device_index": N} — for Drum Rack pads
+
+    Track selection (mutually exclusive, is_master takes priority):
+    - track_index: regular track (default)
+    - return_track_index: return track A=0, B=1, …
+    - is_master: True for the master track
     """
     try:
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_device_params", {"track_index": track_index, "device_index": device_index})
+        result = ableton.send_command("get_device_params", {
+            "track_index": track_index,
+            "device_index": device_index,
+            "chain_path": chain_path,
+            "return_track_index": return_track_index,
+            "is_master": is_master,
+        })
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting device params: {str(e)}")
@@ -840,15 +863,55 @@ def get_device_params(ctx: Context, track_index: int, device_index: int) -> str:
 
 
 @mcp.tool()
-def set_device_param(ctx: Context, track_index: int, device_index: int, param_index: int, value: float) -> str:
+def get_drum_rack_pads(
+    ctx: Context,
+    track_index: int = 0,
+    device_index: int = 0,
+    return_track_index: Optional[int] = None,
+    is_master: bool = False,
+) -> str:
     """
-    Set a parameter value on a device.
+    Get drum pad assignments for a Drum Rack — note number, pad name, mute/solo state,
+    and the chain names of loaded pads. Only loaded pads (those with chains) are returned.
 
-    Parameters:
-    - track_index: The index of the track
-    - device_index: The index of the device on the track
-    - param_index: The index of the parameter to set
-    - value: The new value (will be clamped to the parameter's min/max range)
+    Track selection (mutually exclusive, is_master takes priority):
+    - track_index: regular track (default)
+    - return_track_index: return track A=0, B=1, …
+    - is_master: True for the master track
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_drum_rack_pads", {
+            "track_index": track_index,
+            "device_index": device_index,
+            "return_track_index": return_track_index,
+            "is_master": is_master,
+        })
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting drum rack pads: {str(e)}")
+        return f"Error getting drum rack pads: {str(e)}"
+
+
+@mcp.tool()
+def set_device_param(
+    ctx: Context,
+    track_index: int = 0,
+    device_index: int = 0,
+    param_index: int = 0,
+    value: float = 0.0,
+    chain_path: Optional[list] = None,
+    return_track_index: Optional[int] = None,
+    is_master: bool = False,
+) -> str:
+    """
+    Set a parameter on any device. Accepts the same chain_path and track-selection
+    arguments as get_device_params — copy the chain_path from that response unchanged.
+
+    Track selection (mutually exclusive, is_master takes priority):
+    - track_index: regular track (default)
+    - return_track_index: return track A=0, B=1, …
+    - is_master: True for the master track
     """
     try:
         ableton = get_ableton_connection()
@@ -856,7 +919,10 @@ def set_device_param(ctx: Context, track_index: int, device_index: int, param_in
             "track_index": track_index,
             "device_index": device_index,
             "param_index": param_index,
-            "value": value
+            "value": value,
+            "chain_path": chain_path,
+            "return_track_index": return_track_index,
+            "is_master": is_master,
         })
         return f"Set '{result.get('param_name', f'param {param_index}')}' to {result.get('value', value):.4f}"
     except Exception as e:

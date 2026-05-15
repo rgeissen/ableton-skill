@@ -77,8 +77,9 @@ Then call `get_track_info` for relevant tracks to inspect clips, devices, volume
 |---|---|---|
 | `load_instrument_or_effect` | Load any device from browser onto a track | `track_index`, `uri` |
 | `load_drum_kit` | Load Drum Rack + kit in one step | `track_index`, `rack_uri`, `kit_path` |
-| `get_device_params` | List all parameters with names, values, min/max | `track_index`, `device_index` |
-| `set_device_param` | Set a parameter value by index | `track_index`, `device_index`, `param_index`, `value` |
+| `get_device_params` | Get parameters of any device (top-level or nested). Returns `contents` map with ready-to-use `chain_path` values when the device is a rack. | `track_index`, `device_index`, `chain_path?`, `return_track_index?`, `is_master?` |
+| `set_device_param` | Set a parameter value by index on any device (top-level or nested) | `track_index`, `device_index`, `param_index`, `value`, `chain_path?`, `return_track_index?`, `is_master?` |
+| `get_drum_rack_pads` | List loaded drum rack pads: MIDI note, name, mute/solo, chain names | `track_index`, `device_index`, `return_track_index?`, `is_master?` |
 
 ### Browser
 | Tool | Purpose | Key params |
@@ -118,19 +119,58 @@ Use `get_clip_notes` first if you need to preserve existing content.
 
 ## Device Parameters Workflow
 
+Every device on every track type (regular, return, master) is reachable. The API uses
+**progressive disclosure**: each call tells you exactly what to pass in the next call.
+
+### Track selection (applies to all three device tools)
+| Scenario | Params to add |
+|---|---|
+| Regular track | `track_index=N` (default) |
+| Return track A/B/C… | `return_track_index=0/1/2…` |
+| Master track | `is_master=True` |
+
+### Step 1 — find the device index
 ```
-1. get_track_info(track_index)
-   → see devices[] list, note device indices
-
-2. get_device_params(track_index, device_index)
-   → returns [{index, name, value, min, max}, ...]
-
-3. set_device_param(track_index, device_index, param_index, value)
-   → value is clamped to param's min/max range automatically
+get_track_info(track_index)   →   devices[]: [{index, name, class_name, type}, …]
 ```
 
-Values use the device's **native range** (not 0–1 normalized). Always call `get_device_params`
-first to get correct indices and ranges.
+### Step 2 — get top-level parameters (and discover nested devices)
+```
+get_device_params(track_index, device_index)
+```
+- Returns `parameters[]` — the device's own knobs (macros for racks).
+- If the device is a **Rack**, also returns `contents` with a map of every nested device.
+  Each entry includes a `chain_path` list — **copy it unchanged** into the next call.
+- `"has_nested_devices": true` on an entry means it is itself a rack; call `get_device_params`
+  with its `chain_path` to see another level of `contents`.
+
+### Step 3 — drill into a nested device
+```
+get_device_params(track_index, device_index, chain_path=[…])
+```
+Pass the exact `chain_path` from the `contents` entry. Works at any depth.
+
+### Step 4 — set a parameter
+```
+set_device_param(track_index, device_index, param_index, value, chain_path=[…])
+```
+Same `chain_path` as the read call. `value` is clamped to the param's native min/max automatically.
+
+### chain_path format
+A list of step dicts. Each step navigates one rack layer:
+```json
+{"chain_index": 0, "device_index": 0}              // Instrument / Effect Rack
+{"pad_note": 36, "chain_index": 0, "device_index": 0}  // Drum Rack pad (note 36 = C1)
+```
+Multiple steps = multiple layers deep. In practice just copy the value from the response.
+
+### Drum Rack: find which pad is which note
+```
+get_drum_rack_pads(track_index, device_index)
+→ [{note: 36, name: "Kick", mute, solo, chains: ["Kick"]}, …]
+```
+Only loaded pads are returned. Useful when you need to know the note number before
+constructing a `chain_path` step manually.
 
 ---
 
@@ -193,19 +233,48 @@ get_clip_notes(0, 1)
 add_notes_to_clip(0, 1, modified_notes)      → write variation into the copy
 ```
 
-### Tweak a synth parameter
+### Tweak a synth parameter (top-level device)
 ```
 get_device_params(track_index=2, device_index=0)
-→ [{index:5, name:"Filter Freq", value:1000.0, min:20.0, max:20000.0}, ...]
+→ {parameters: [{index:5, name:"Filter Freq", value:1000.0, min:20.0, max:20000.0}, …]}
 
 set_device_param(track_index=2, device_index=0, param_index=5, value=2500.0)
+```
+
+### Tweak a parameter inside a Drum Rack pad (e.g. Simpler on the kick)
+```
+get_device_params(track_index=0, device_index=0)
+→ {contents: {type:"drum_rack", drum_pads: [
+     {note:36, name:"Kick", chains:[{chain_index:0, devices:[
+       {name:"Simpler", chain_path:[{"pad_note":36,"chain_index":0,"device_index":0}]}
+     ]}]}, …
+   ]}}
+
+get_device_params(track_index=0, device_index=0,
+                  chain_path=[{"pad_note":36,"chain_index":0,"device_index":0}])
+→ {parameters: [{index:3, name:"Start", value:0.0, min:0.0, max:1.0}, …]}
+
+set_device_param(track_index=0, device_index=0, param_index=3, value=0.1,
+                 chain_path=[{"pad_note":36,"chain_index":0,"device_index":0}])
+```
+
+### Tweak a parameter on a return track
+```
+get_device_params(return_track_index=0, device_index=0)   // Return A
+set_device_param(return_track_index=0, device_index=0, param_index=2, value=0.5)
+```
+
+### Tweak a parameter on the master track
+```
+get_device_params(is_master=True, device_index=0)
+set_device_param(is_master=True, device_index=0, param_index=0, value=0.8)
 ```
 
 ---
 
 ## Notes & Caveats
 
-- **Track indices are 0-based**, do not include return tracks or master
+- **Track indices are 0-based**, do not include return tracks or master — use `return_track_index` / `is_master` for those
 - **Clip slot indices are 0-based** (Scene 1 = index 0)
 - `add_notes_to_clip` **replaces all notes** — use `get_clip_notes` first to preserve existing content
 - `duplicate_clip` without `target_track_index` copies within the same track
@@ -220,3 +289,7 @@ set_device_param(track_index=2, device_index=0, param_index=5, value=2500.0)
 - `set_scale_mode` params are all optional — pass only what you want to change
 - `root_note` is 0–11: C=0, C#=1, D=2, D#=3, E=4, F=5, F#=6, G=7, G#=8, A=9, A#=10, B=11
 - Valid `scale_name` values: Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Locrian, Whole Tone, Minor Pentatonic, Major Pentatonic, Harmonic Minor, Melodic Minor
+- `get_device_params` on a rack returns **macros** in `parameters[]` and **nested devices** in `contents` — they are separate
+- `chain_path` is a list of step dicts — copy it verbatim from the `contents` response; never construct it from scratch unless you already know the structure
+- `get_drum_rack_pads` only returns pads that have something loaded (chains non-empty)
+- `drum_pads` in Live are indexed 0–127 by MIDI note number; `pad_note` in a `chain_path` step is that note number
