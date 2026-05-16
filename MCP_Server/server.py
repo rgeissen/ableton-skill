@@ -1284,7 +1284,9 @@ def main():
     args = parser.parse_args()
 
     if args.server:
-        mcp.run("streamable-http", host="0.0.0.0", port=args.port)
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = args.port
+        mcp.run("streamable-http")
     else:
         logging.basicConfig(level=logging.INFO, stream=sys.stderr)
         mcp.run()
