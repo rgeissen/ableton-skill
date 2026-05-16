@@ -1286,7 +1286,8 @@ def main():
     if args.server:
         mcp.settings.host = "0.0.0.0"
         mcp.settings.port = args.port
-        mcp.run("sse")
+        mcp.settings.transport_security.enable_dns_rebinding_protection = False
+        mcp.run("streamable-http")
     else:
         logging.basicConfig(level=logging.INFO, stream=sys.stderr)
         mcp.run()
