@@ -221,10 +221,15 @@ class AbletonMCP(ControlSurface):
         try:
             # Route the command to the appropriate handler
             if command_type == "get_session_info":
-                response["result"] = self._get_session_info()
+                include_track_names = params.get("include_track_names", False)
+                response["result"] = self._get_session_info(include_track_names)
             elif command_type == "get_track_info":
                 track_index = params.get("track_index", 0)
-                response["result"] = self._get_track_info(track_index)
+                include_clips = params.get("include_clips", True)
+                include_devices = params.get("include_devices", True)
+                response["result"] = self._get_track_info(track_index, include_clips, include_devices)
+            elif command_type == "get_all_tracks_info":
+                response["result"] = self._get_all_tracks_info()
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name",
                                  "create_clip", "add_notes_to_clip", "set_clip_name",
@@ -414,7 +419,7 @@ class AbletonMCP(ControlSurface):
     
     # Command implementations
     
-    def _get_session_info(self):
+    def _get_session_info(self, include_track_names=False):
         """Get information about the current session"""
         try:
             result = {
@@ -429,48 +434,21 @@ class AbletonMCP(ControlSurface):
                     "panning": self._song.master_track.mixer_device.panning.value
                 }
             }
+            if include_track_names:
+                result["track_names"] = [t.name for t in self._song.tracks]
             return result
         except Exception as e:
             self.log_message("Error getting session info: " + str(e))
             raise
     
-    def _get_track_info(self, track_index):
+    def _get_track_info(self, track_index, include_clips=True, include_devices=True):
         """Get information about a track"""
         try:
             if track_index < 0 or track_index >= len(self._song.tracks):
                 raise IndexError("Track index out of range")
-            
+
             track = self._song.tracks[track_index]
-            
-            # Get clip slots
-            clip_slots = []
-            for slot_index, slot in enumerate(track.clip_slots):
-                clip_info = None
-                if slot.has_clip:
-                    clip = slot.clip
-                    clip_info = {
-                        "name": clip.name,
-                        "length": clip.length,
-                        "is_playing": clip.is_playing,
-                        "is_recording": clip.is_recording
-                    }
-                
-                clip_slots.append({
-                    "index": slot_index,
-                    "has_clip": slot.has_clip,
-                    "clip": clip_info
-                })
-            
-            # Get devices
-            devices = []
-            for device_index, device in enumerate(track.devices):
-                devices.append({
-                    "index": device_index,
-                    "name": device.name,
-                    "class_name": device.class_name,
-                    "type": self._get_device_type(device)
-                })
-            
+
             result = {
                 "index": track_index,
                 "name": track.name,
@@ -481,12 +459,61 @@ class AbletonMCP(ControlSurface):
                 "arm": track.arm,
                 "volume": track.mixer_device.volume.value,
                 "panning": track.mixer_device.panning.value,
-                "clip_slots": clip_slots,
-                "devices": devices
             }
+
+            if include_clips:
+                clip_slots = []
+                for slot_index, slot in enumerate(track.clip_slots):
+                    clip_info = None
+                    if slot.has_clip:
+                        clip = slot.clip
+                        clip_info = {
+                            "name": clip.name,
+                            "length": clip.length,
+                            "is_playing": clip.is_playing,
+                            "is_recording": clip.is_recording
+                        }
+                    clip_slots.append({
+                        "index": slot_index,
+                        "has_clip": slot.has_clip,
+                        "clip": clip_info
+                    })
+                result["clip_slots"] = clip_slots
+
+            if include_devices:
+                devices = []
+                for device_index, device in enumerate(track.devices):
+                    devices.append({
+                        "index": device_index,
+                        "name": device.name,
+                        "class_name": device.class_name,
+                        "type": self._get_device_type(device)
+                    })
+                result["devices"] = devices
+
             return result
         except Exception as e:
             self.log_message("Error getting track info: " + str(e))
+            raise
+
+    def _get_all_tracks_info(self):
+        """Get compact summary of all tracks"""
+        try:
+            tracks = []
+            for i, track in enumerate(self._song.tracks):
+                tracks.append({
+                    "index": i,
+                    "name": track.name,
+                    "type": "midi" if track.has_midi_input else "audio",
+                    "mute": track.mute,
+                    "solo": track.solo,
+                    "volume": track.mixer_device.volume.value,
+                    "device_count": len(track.devices),
+                    "clip_count": sum(1 for s in track.clip_slots if s.has_clip),
+                })
+            return {"tracks": tracks}
+        except Exception as e:
+            self.log_message("Error getting all tracks info: " + str(e))
             raise
     
     def _create_midi_track(self, index):

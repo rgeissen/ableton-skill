@@ -267,31 +267,57 @@ def get_ableton_connection():
 # Core Tool endpoints
 
 @mcp.tool()
-def get_session_info(ctx: Context) -> str:
-    """Get detailed information about the current Ableton session"""
+def get_session_info(ctx: Context, include_track_names: bool = False) -> str:
+    """
+    Get information about the current Ableton session.
+
+    Parameters:
+    - include_track_names: When True, include a 'track_names' list with every track name in order (default: False).
+    """
     try:
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_session_info")
+        result = ableton.send_command("get_session_info", {"include_track_names": include_track_names})
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting session info from Ableton: {str(e)}")
         return f"Error getting session info: {str(e)}"
 
 @mcp.tool()
-def get_track_info(ctx: Context, track_index: int) -> str:
+def get_track_info(ctx: Context, track_index: int, include_clips: bool = False, include_devices: bool = False) -> str:
     """
-    Get detailed information about a specific track in Ableton.
-    
+    Get information about a specific track in Ableton.
+
     Parameters:
-    - track_index: The index of the track to get information about
+    - track_index:     The index of the track to get information about.
+    - include_clips:   When True, include the 'clip_slots' array (default: False).
+    - include_devices: When True, include the 'devices' array (default: False).
     """
     try:
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_track_info", {"track_index": track_index})
+        result = ableton.send_command("get_track_info", {
+            "track_index": track_index,
+            "include_clips": include_clips,
+            "include_devices": include_devices,
+        })
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting track info from Ableton: {str(e)}")
         return f"Error getting track info: {str(e)}"
+
+@mcp.tool()
+def get_all_tracks_info(ctx: Context) -> str:
+    """
+    Get a compact summary of all tracks in the session in one call.
+    Returns index, name, type, mute, solo, volume, device_count, and clip_count for each track.
+    Use get_track_info with include_clips/include_devices for full details on a specific track.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_all_tracks_info")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting all tracks info from Ableton: {str(e)}")
+        return f"Error getting all tracks info: {str(e)}"
 
 @mcp.tool()
 def create_midi_track(ctx: Context, index: int = -1) -> str:
@@ -571,27 +597,36 @@ def get_browser_tree(ctx: Context, category_type: str = "all") -> str:
             return f"Error getting browser tree: {error_msg}"
 
 @mcp.tool()
-def get_browser_items_at_path(ctx: Context, path: str) -> str:
+def get_browser_items_at_path(ctx: Context, path: str, item_type: str = "all") -> str:
     """
     Get browser items at a specific path in Ableton's browser.
-    
+
     Parameters:
-    - path: Path in the format "category/folder/subfolder"
-            where category is one of the available browser categories in Ableton
+    - path:      Path in the format "category/folder/subfolder"
+                 where category is one of the available browser categories in Ableton.
+    - item_type: Filter items by type. One of:
+                   "all"      — return all items (default)
+                   "folder"   — return only folders
+                   "loadable" — return only loadable items
     """
     try:
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_browser_items_at_path", {
-            "path": path
-        })
-        
-        # Check if there was an error with available categories
+        result = ableton.send_command("get_browser_items_at_path", {"path": path})
+
         if "error" in result and "available_categories" in result:
             error = result.get("error", "")
             available_cats = result.get("available_categories", [])
             return (f"Error: {error}\n"
                    f"Available browser categories: {', '.join(available_cats)}")
-        
+
+        if item_type != "all" and "items" in result:
+            if item_type == "folder":
+                result["items"] = [i for i in result["items"] if i.get("is_folder")]
+            elif item_type == "loadable":
+                result["items"] = [i for i in result["items"] if i.get("is_loadable")]
+            else:
+                return f"Error: invalid item_type '{item_type}'. Must be one of: all, folder, loadable"
+
         return json.dumps(result, indent=2)
     except Exception as e:
         error_msg = str(e)
@@ -1157,15 +1192,17 @@ def _reconstruct_browser_path(conn, file_id: int) -> str:
 
 
 @mcp.tool()
-def get_browser_tags(ctx: Context, category: str = "all") -> str:
+def get_browser_tags(ctx: Context, category: str = "all", prefix: str = "") -> str:
     """
-    Return all tag names available in Ableton's browser, read directly from
+    Return tag names available in Ableton's browser, read directly from
     Ableton's local database (Ableton does not need to be running).
 
     Parameters:
     - category: Filter to tags used in a specific browser section.
                 One of: all (default), sounds, instruments, drums, audio_effects,
                 midi_effects, max_for_live, plugins, clips, samples, grooves, tunings
+    - prefix:   If non-empty, only return tags whose name starts with this string
+                (case-insensitive). Default: "" (no filter).
     """
     try:
         db_path = _get_ableton_db()
@@ -1191,6 +1228,9 @@ def get_browser_tags(ctx: Context, category: str = "all") -> str:
 
         conn.close()
         tags = [r[0] for r in rows]
+        if prefix:
+            prefix_lower = prefix.lower()
+            tags = [t for t in tags if t.lower().startswith(prefix_lower)]
         return json.dumps({"category": category, "count": len(tags), "tags": tags}, indent=2)
 
     except Exception as e:
@@ -1204,6 +1244,7 @@ def search_by_tags(
     tags: List[str],
     category: str = "all",
     limit: int = 50,
+    offset: int = 0,
 ) -> str:
     """
     Search Ableton's browser for content matching ALL supplied tags.
@@ -1216,9 +1257,10 @@ def search_by_tags(
                 One of: all (default), sounds, instruments, drums, audio_effects,
                 midi_effects, max_for_live, plugins, clips, samples, grooves, tunings
     - limit:    Maximum number of results to return (default 50).
+    - offset:   Number of results to skip before returning (default 0). Use with limit for pagination.
 
     Each result includes name, type, source, and a browser_path you can pass
-    to get_browser_items_at_path to obtain a live URI for loading.
+    to load_sound_by_path to load it directly onto a track.
     """
     try:
         if not tags:
@@ -1246,8 +1288,8 @@ def search_by_tags(
               {cat_clause}
             GROUP BY f.file_id
             HAVING COUNT(DISTINCT tag.name) = ?
-            LIMIT ?
-        """, tags + [_KEYW_TYPE] + cat_params + [n, limit]).fetchall()
+            LIMIT ? OFFSET ?
+        """, tags + [_KEYW_TYPE] + cat_params + [n, limit, offset]).fetchall()
 
         results = []
         for file_id, name, file_type, device_id, source in rows:
@@ -1265,13 +1307,132 @@ def search_by_tags(
             "query_tags": tags,
             "category":   category,
             "count":      len(results),
-            "hint":       "Pass the parent folder of browser_path to get_browser_items_at_path to get a live URI",
+            "offset":     offset,
+            "hint":       "Pass browser_path directly to load_sound_by_path to load onto a track",
             "results":    results,
         }, indent=2)
 
     except Exception as e:
         logger.error(f"Error searching by tags: {e}")
         return f"Error searching by tags: {e}"
+
+
+@mcp.tool()
+def create_track_with_clip(
+    ctx: Context,
+    track_name: str,
+    notes: List[Dict],
+    clip_length: float = 4.0,
+    clip_index: int = 0,
+    clip_name: Optional[str] = None,
+    track_index: int = -1,
+) -> str:
+    """
+    Create a named MIDI track, create a clip, and add notes in one call.
+    Replaces the common 4-step workflow: create_midi_track → set_track_name → create_clip → add_notes_to_clip.
+
+    Parameters:
+    - track_name:   Name for the new track.
+    - notes:        List of note objects ({pitch, start_time, duration, velocity, mute}).
+    - clip_length:  Length of the clip in beats (default 4.0).
+    - clip_index:   Clip slot index to create the clip in (default 0).
+    - clip_name:    Optional name for the clip. Defaults to track_name if not provided.
+    - track_index:  Where to insert the track (-1 = end, default).
+    """
+    try:
+        ableton = get_ableton_connection()
+
+        track_result = ableton.send_command("create_midi_track", {"index": track_index})
+        new_track_index = track_result.get("index", track_index)
+
+        ableton.send_command("set_track_name", {"track_index": new_track_index, "name": track_name})
+        ableton.send_command("create_clip", {"track_index": new_track_index, "clip_index": clip_index, "length": clip_length})
+        ableton.send_command("add_notes_to_clip", {"track_index": new_track_index, "clip_index": clip_index, "notes": notes})
+
+        if clip_name or track_name:
+            ableton.send_command("set_clip_name", {
+                "track_index": new_track_index,
+                "clip_index": clip_index,
+                "name": clip_name or track_name,
+            })
+
+        return json.dumps({
+            "track_index": new_track_index,
+            "track_name": track_name,
+            "clip_index": clip_index,
+            "clip_length": clip_length,
+            "note_count": len(notes),
+        }, indent=2)
+    except Exception as e:
+        logger.error(f"Error creating track with clip: {str(e)}")
+        return f"Error creating track with clip: {str(e)}"
+
+
+@mcp.tool()
+def search_and_load_sound(
+    ctx: Context,
+    track_index: int,
+    tags: List[str],
+    category: str = "all",
+    result_index: int = 0,
+) -> str:
+    """
+    Search for a sound by tags and load it onto a track in one call.
+    Replaces the common 2-step workflow: search_by_tags → load_sound_by_path.
+
+    Parameters:
+    - track_index:   The index of the track to load onto.
+    - tags:          One or more tag names (AND logic — item must have ALL tags).
+    - category:      Restrict search to a browser section (default: "all").
+    - result_index:  Which result to load (0 = first match, default).
+    """
+    try:
+        ableton = get_ableton_connection()
+
+        db_path = _get_ableton_db()
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+        cat_sql, cat_params = _category_filter(category)
+        n = len(tags)
+        tag_placeholders = ",".join("?" * n)
+        cat_clause = f"AND {cat_sql}" if cat_sql else ""
+
+        rows = conn.execute(f"""
+            SELECT f.file_id, f.name
+            FROM files f
+            JOIN keywords k   ON k.file_id  = f.file_id
+            JOIN files tag    ON tag.file_id = k.keyw_id
+            WHERE tag.name IN ({tag_placeholders})
+              AND tag.file_type = ?
+              {cat_clause}
+            GROUP BY f.file_id
+            HAVING COUNT(DISTINCT tag.name) = ?
+            LIMIT ? OFFSET ?
+        """, tags + [_KEYW_TYPE] + cat_params + [n, 1, result_index]).fetchall()
+
+        if not rows:
+            conn.close()
+            return f"No results found for tags {tags} (category: {category}, result_index: {result_index})"
+
+        file_id, name = rows[0]
+        browser_path = _reconstruct_browser_path(conn, file_id)
+        conn.close()
+
+        result = ableton.send_command("load_browser_item_by_path", {
+            "track_index": track_index,
+            "browser_path": browser_path,
+        })
+
+        if result.get("loaded"):
+            return json.dumps({
+                "loaded": result.get("item_name", name),
+                "track_index": track_index,
+                "browser_path": browser_path,
+            }, indent=2)
+        return f"Found '{name}' but could not load it from '{browser_path}'"
+    except Exception as e:
+        logger.error(f"Error in search_and_load_sound: {str(e)}")
+        return f"Error in search_and_load_sound: {str(e)}"
 
 
 # Main execution
