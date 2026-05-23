@@ -24,7 +24,10 @@
       "Bash(cp ~/.claude/skills/ableton-mcp/SKILL.md /Users/livin2rave/my_private_code/ableton-mcp/.claude/skills/ableton-mcp/SKILL.md)",
       "Bash(rm -rf ~/.claude/skills/ableton-mcp && echo \"removed user-level copy\")",
       "Edit(/.claude/skills/ableton-mcp/**)",
-      "Bash(brew uninstall *)"
+      "Bash(brew uninstall *)",
+      "Bash(/opt/miniconda3/envs/ableton-mcp/bin/python -c \"import MCP_Server.server; print\\('OK'\\)\")",
+      "Bash(/opt/miniconda3/envs/ableton-mcp/bin/python -c ' *)",
+      "Edit(/.claude/skills/ableton-mcp-theory/**)"
     ],
     "additionalDirectories": [
       "/Users/livin2rave/.claude/skills/ableton-mcp"

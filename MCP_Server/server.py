@@ -15,6 +15,107 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("AbletonMCPServer")
 
+# ---------------------------------------------------------------------------
+# Music Theory Data Tables
+# ---------------------------------------------------------------------------
+
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+SCALE_INTERVALS: Dict[str, List[int]] = {
+    "major":            [0, 2, 4, 5, 7, 9, 11],
+    "minor":            [0, 2, 3, 5, 7, 8, 10],
+    "dorian":           [0, 2, 3, 5, 7, 9, 10],
+    "phrygian":         [0, 1, 3, 5, 7, 8, 10],
+    "lydian":           [0, 2, 4, 6, 7, 9, 11],
+    "mixolydian":       [0, 2, 4, 5, 7, 9, 10],
+    "locrian":          [0, 1, 3, 5, 6, 8, 10],
+    "harmonic_minor":   [0, 2, 3, 5, 7, 8, 11],
+    "melodic_minor":    [0, 2, 3, 5, 7, 9, 11],
+    "pentatonic_major": [0, 2, 4, 7, 9],
+    "pentatonic_minor": [0, 3, 5, 7, 10],
+    "blues":            [0, 3, 5, 6, 7, 10],
+    "whole_tone":       [0, 2, 4, 6, 8, 10],
+    "diminished":       [0, 2, 3, 5, 6, 8, 9, 11],
+    "chromatic":        list(range(12)),
+}
+
+CHORD_INTERVALS: Dict[str, List[int]] = {
+    "maj":       [0, 4, 7],
+    "min":       [0, 3, 7],
+    "dim":       [0, 3, 6],
+    "aug":       [0, 4, 8],
+    "maj7":      [0, 4, 7, 11],
+    "min7":      [0, 3, 7, 10],
+    "dom7":      [0, 4, 7, 10],
+    "dim7":      [0, 3, 6, 9],
+    "half_dim7": [0, 3, 6, 10],
+    "sus2":      [0, 2, 7],
+    "sus4":      [0, 5, 7],
+    "add9":      [0, 4, 7, 14],
+    "maj9":      [0, 4, 7, 11, 14],
+    "min9":      [0, 3, 7, 10, 14],
+}
+
+# Diatonic degree (1–7) → chord quality for major and minor scales
+DIATONIC_QUALITY: Dict[str, Dict[int, str]] = {
+    "major": {1: "maj", 2: "min", 3: "min", 4: "maj", 5: "maj", 6: "min", 7: "dim"},
+    "minor": {1: "min", 2: "dim", 3: "maj", 4: "min", 5: "min", 6: "maj", 7: "maj"},
+}
+
+# Genre bass patterns: (beat_offset, semitone_offset_from_root, duration_beats, velocity)
+BASS_RHYTHM_PATTERNS: Dict[str, List[tuple]] = {
+    "deep_house": [
+        (0.0,  0,   0.25, 100), (0.5,   0,  0.25,  80),
+        (1.0,  0,   0.5,   95), (2.0,   0,  0.25, 100),
+        (2.75, -12, 0.25,  70), (3.0,   0,  0.5,   90),
+    ],
+    "techno": [
+        (0.0,  0, 0.125, 110), (0.5,  0, 0.125,  90),
+        (1.0,  0, 0.125, 105), (1.5,  0, 0.125,  85),
+        (2.0,  0, 0.125, 110), (2.5,  0, 0.125,  90),
+        (3.0,  0, 0.125, 105), (3.5,  0, 0.125,  85),
+    ],
+    "hip_hop": [
+        (0.0, 0,  0.5, 100), (1.5,  0,  0.25, 85),
+        (2.0, -5, 0.5,  95), (3.5,  0,  0.25, 80),
+    ],
+    "funk": [
+        (0.0,  0,  0.125, 110), (0.25, 0,  0.125,  75),
+        (0.5,  7,  0.125,  90), (1.0,  0,  0.25,  100),
+        (1.5, -5,  0.125,  80), (2.0,  0,  0.125, 110),
+        (2.5,  5,  0.125,  85), (3.0,  0,  0.5,    95),
+        (3.5,  7,  0.125,  75),
+    ],
+    "reggae": [
+        (1.0, 0, 0.5, 95), (3.0, 0, 0.5, 90), (3.75, 0, 0.25, 75),
+    ],
+    "drum_and_bass": [
+        (0.0,  0,   0.25, 110), (0.75,   0, 0.125,  80),
+        (1.0,  0,   0.25, 100), (1.5,  -12, 0.125,  70),
+        (2.0,  0,   0.25, 110), (3.0,    0, 0.5,    95),
+    ],
+    "afrobeats": [
+        (0.0, 0, 0.25, 100), (0.5, 5, 0.25,  85),
+        (1.0, 0, 0.5,   95), (2.0, 7, 0.25,  90),
+        (2.5, 0, 0.25,  80), (3.0, 0, 0.5,  100),
+    ],
+    "pop": [
+        (0.0, 0, 0.5, 95), (1.0, 0, 0.5, 90),
+        (2.0, 0, 0.5, 95), (3.0, 0, 0.5, 90),
+    ],
+    "latin": [
+        (0.0, 0, 0.25, 105), (0.75, 7,  0.25,  85),
+        (1.0, 0, 0.5,   95), (2.0,  5,  0.25,  90),
+        (2.5, 0, 0.25,  80), (3.0,  0,  0.5,  100),
+        (3.5, 7, 0.125, 75),
+    ],
+    "jazz": [
+        (0.0, 0,  0.5, 90), (1.0, 7,  0.25, 75),
+        (1.5, 5,  0.25, 70), (2.0, 0,  0.5,  85),
+        (3.0, -5, 0.5,  80), (3.5, 0,  0.25, 65),
+    ],
+}
+
 @dataclass
 class AbletonConnection:
     host: str
@@ -262,6 +363,87 @@ def get_ableton_connection():
             raise Exception("Could not connect to Ableton. Make sure the Remote Script is running.")
     
     return _ableton_connection
+
+
+# ---------------------------------------------------------------------------
+# Music Theory Helpers
+# ---------------------------------------------------------------------------
+
+def _note_name_to_midi(note_name: str) -> int:
+    """Convert 'C4' → 60, 'A#3' → 58, 'Bb3' → 58."""
+    note_name = note_name.strip()
+    if len(note_name) < 2:
+        raise ValueError(f"Invalid note: {note_name!r}")
+    if len(note_name) > 1 and note_name[1] in ("#", "b"):
+        pitch_str, octave_str = note_name[:2], note_name[2:]
+    else:
+        pitch_str, octave_str = note_name[:1], note_name[1:]
+    pitch_str = pitch_str.upper()
+    enharmonics = {"CB": "B", "DB": "C#", "EB": "D#", "FB": "E", "GB": "F#",
+                   "AB": "G#", "BB": "A#"}
+    pitch_str = enharmonics.get(pitch_str, pitch_str)
+    if pitch_str not in NOTE_NAMES:
+        raise ValueError(f"Unknown pitch class: {pitch_str!r}. Use C, C#, D, D#, E, F, F#, G, G#, A, A#, B")
+    octave = int(octave_str)
+    return NOTE_NAMES.index(pitch_str) + (octave + 1) * 12
+
+
+def _midi_to_note_name(midi: int) -> str:
+    return f"{NOTE_NAMES[midi % 12]}{(midi // 12) - 1}"
+
+
+def _get_scale_intervals(scale_name: str) -> List[int]:
+    key = scale_name.lower().replace(" ", "_").replace("-", "_")
+    if key not in SCALE_INTERVALS:
+        raise ValueError(f"Unknown scale '{scale_name}'. Valid: {sorted(SCALE_INTERVALS)}")
+    return SCALE_INTERVALS[key]
+
+
+def _build_scale_pitches(root_midi: int, intervals: List[int], octave_range: int = 2) -> List[int]:
+    """Return MIDI pitches for all scale notes across octave_range octaves, ascending."""
+    pitches = []
+    for oct_shift in range(octave_range):
+        for iv in intervals:
+            p = root_midi + oct_shift * 12 + iv
+            if 0 <= p <= 127:
+                pitches.append(p)
+    return sorted(set(pitches))
+
+
+def _resolve_scale_context(ableton, root_note: Optional[str], scale_name: Optional[str]) -> tuple:
+    """Return (root_midi, intervals, root_note_str, scale_name_str).
+    Falls back to Ableton's current scale when args are None."""
+    if root_note is None or scale_name is None:
+        try:
+            live_scale = ableton.send_command("get_scale_mode")
+            if root_note is None:
+                # root_note from Live API is 0–11; build octave 3 note name
+                live_root = live_scale.get("root_note", 0)
+                root_note = f"{NOTE_NAMES[live_root % 12]}3"
+            if scale_name is None:
+                raw = live_scale.get("scale_name", "major")
+                scale_name = raw.lower().replace(" ", "_")
+        except Exception:
+            root_note = root_note or "C3"
+            scale_name = scale_name or "major"
+    root_midi = _note_name_to_midi(root_note)
+    intervals = _get_scale_intervals(scale_name)
+    return root_midi, intervals, root_note, scale_name
+
+
+def _apply_voicing(pitches: List[int], voicing: str) -> List[int]:
+    """Revoice a close-position chord (ascending pitches)."""
+    p = sorted(pitches)
+    if voicing == "close":
+        return p
+    if voicing == "open":
+        return sorted(p[i] + (12 if i % 2 == 0 and i > 0 else 0) for i, _ in enumerate(p))
+    if voicing == "drop2" and len(p) >= 3:
+        second_highest = sorted(p)[-2]
+        return sorted([x if x != second_highest else second_highest - 12 for x in p])
+    if voicing == "spread":
+        return sorted(p[i] + i * 12 for i in range(len(p)))
+    return p  # unknown voicing → close
 
 
 # Core Tool endpoints
@@ -1433,6 +1615,437 @@ def search_and_load_sound(
     except Exception as e:
         logger.error(f"Error in search_and_load_sound: {str(e)}")
         return f"Error in search_and_load_sound: {str(e)}"
+
+
+# ---------------------------------------------------------------------------
+# Event Subscription Tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def subscribe_to_events(ctx: Context, event_types: List[str]) -> str:
+    """
+    Subscribe to live Ableton state-change events. Poll get_pending_events to receive them.
+
+    Supported event types: tempo, is_playing, current_song_time, track_count.
+
+    Parameters:
+    - event_types: List of event type strings to subscribe to.
+
+    Returns which event types were successfully subscribed.
+    Use get_pending_events periodically to drain the event queue.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("subscribe_to_events", {"event_types": event_types})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error subscribing to events: {e}"
+
+
+@mcp.tool()
+def get_pending_events(ctx: Context) -> str:
+    """
+    Drain and return all queued Ableton events since the last call.
+
+    Call this periodically while Ableton is playing to receive state changes
+    (tempo edits, play/stop, song position updates, track additions/removals).
+    Each call clears the queue — events are not repeated on subsequent calls.
+
+    Returns {"events": [...], "count": int}. Each event has "type", "timestamp", and "data".
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_pending_events")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error getting pending events: {e}"
+
+
+@mcp.tool()
+def unsubscribe_from_events(ctx: Context, event_types: Optional[List[str]] = None) -> str:
+    """
+    Unsubscribe from Ableton events and stop receiving them.
+
+    Parameters:
+    - event_types: List of event type strings to unsubscribe from.
+                   Pass null / omit to unsubscribe from all active subscriptions.
+
+    Returns the list of event types that were unsubscribed.
+    """
+    try:
+        ableton = get_ableton_connection()
+        params = {"event_types": event_types} if event_types is not None else {}
+        result = ableton.send_command("unsubscribe_from_events", params)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error unsubscribing from events: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Music Theory Tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def generate_chord(
+    ctx: Context,
+    root_note: Optional[str] = None,
+    chord_type: str = "maj",
+    voicing: str = "close",
+    octave_shift: int = 0,
+    scale_name: Optional[str] = None,
+    velocity: int = 90,
+    duration: float = 1.0,
+    start_time: float = 0.0,
+) -> str:
+    """
+    Generate a chord as a list of MIDI note dicts ready to pass to add_notes_to_clip or create_track_with_clip.
+
+    When root_note or scale_name is not supplied, the tool reads Ableton's current scale setting.
+
+    Parameters:
+    - root_note:    Root note string like "C4", "F#3", "Bb2". Default: Ableton's current scale root.
+    - chord_type:   Chord quality. One of: maj, min, dim, aug, maj7, min7, dom7, dim7, half_dim7,
+                    sus2, sus4, add9, maj9, min9. Default: "maj".
+    - voicing:      Note layout. "close" (stacked), "open" (wide), "drop2", "spread". Default: "close".
+    - octave_shift: Transpose the whole chord up/down by N octaves. Default: 0.
+    - scale_name:   Scale context for display/validation. Default: Ableton's current scale.
+    - velocity:     MIDI velocity 1–127. Default: 90.
+    - duration:     Note duration in beats. Default: 1.0.
+    - start_time:   Clip position in beats. Default: 0.0.
+
+    Returns a dict with "notes" (pass to add_notes_to_clip), "chord_name", and "root".
+    """
+    try:
+        ableton = get_ableton_connection()
+        root_midi, intervals, root_str, scale_str = _resolve_scale_context(ableton, root_note, scale_name)
+
+        if chord_type not in CHORD_INTERVALS:
+            return f"Error: unknown chord_type '{chord_type}'. Valid: {sorted(CHORD_INTERVALS)}"
+
+        raw_pitches = [root_midi + iv + octave_shift * 12 for iv in CHORD_INTERVALS[chord_type]]
+        raw_pitches = [max(0, min(127, p)) for p in raw_pitches]
+        voiced = _apply_voicing(raw_pitches, voicing)
+
+        notes = [{"pitch": p, "start_time": start_time, "duration": duration,
+                  "velocity": velocity, "mute": False} for p in voiced]
+
+        return json.dumps({
+            "notes": notes,
+            "chord_name": f"{NOTE_NAMES[root_midi % 12]}{chord_type}",
+            "root": root_str,
+            "voicing": voicing,
+            "hint": "Pass 'notes' to add_notes_to_clip or create_track_with_clip",
+        }, indent=2)
+    except Exception as e:
+        return f"Error generating chord: {e}"
+
+
+@mcp.tool()
+def generate_chord_progression(
+    ctx: Context,
+    degrees: List[int],
+    root_note: Optional[str] = None,
+    scale_name: Optional[str] = None,
+    bars_per_chord: float = 1.0,
+    voicing: str = "close",
+    velocity: int = 90,
+    octave: int = 4,
+) -> str:
+    """
+    Generate a diatonic chord progression as MIDI notes, ready for create_track_with_clip.
+
+    Degrees are scale degrees 1–7. Chord qualities are automatically derived from the scale
+    (e.g. degree 5 in major = dominant/maj, degree 2 in minor = diminished).
+
+    Parameters:
+    - degrees:        List of scale degrees, e.g. [1, 4, 5, 1] or [1, 6, 4, 5].
+    - root_note:      Root note string like "C4". Default: Ableton's current scale root.
+    - scale_name:     Scale name. Default: Ableton's current scale.
+    - bars_per_chord: Duration of each chord in bars (beats when 4/4). Default: 1.0 bar = 4 beats.
+    - voicing:        Note layout. "close" | "open" | "drop2" | "spread". Default: "close".
+    - velocity:       MIDI velocity 1–127. Default: 90.
+    - octave:         Root octave for the chords. Default: 4.
+
+    Returns "notes" (all chords combined), "clip_length", "chord_names", and scale context.
+    """
+    try:
+        ableton = get_ableton_connection()
+        # Use given octave for the root, override what _resolve_scale_context returns
+        root_for_resolve = f"{root_note}" if root_note else None
+        _, intervals, root_str, scale_str = _resolve_scale_context(ableton, root_for_resolve, scale_name)
+
+        # Re-derive root at the requested octave
+        root_pitch_class = NOTE_NAMES.index(root_str[:-1]) if root_str[-1].isdigit() else \
+                           NOTE_NAMES.index(root_str[:-2] if root_str[-2] in ("#", "b") else root_str[:-1])
+        root_midi = root_pitch_class + (octave + 1) * 12
+
+        beats_per_chord = bars_per_chord * 4.0
+        all_notes = []
+        chord_names = []
+        quality_map = DIATONIC_QUALITY.get(scale_str, DIATONIC_QUALITY["major"])
+
+        for i, degree in enumerate(degrees):
+            if degree < 1 or degree > len(intervals):
+                return f"Error: degree {degree} out of range for scale '{scale_str}' (1–{len(intervals)})"
+            chord_root = root_midi + intervals[degree - 1]
+            quality = quality_map.get(degree, "maj")
+            raw_pitches = [chord_root + iv for iv in CHORD_INTERVALS[quality]]
+            raw_pitches = [max(0, min(127, p)) for p in raw_pitches]
+            voiced = _apply_voicing(raw_pitches, voicing)
+            t_start = i * beats_per_chord
+            for p in voiced:
+                all_notes.append({"pitch": p, "start_time": t_start,
+                                  "duration": beats_per_chord * 0.9,
+                                  "velocity": velocity, "mute": False})
+            chord_names.append(f"{NOTE_NAMES[chord_root % 12]}{quality}")
+
+        clip_length = len(degrees) * beats_per_chord
+        return json.dumps({
+            "notes": all_notes,
+            "clip_length": clip_length,
+            "chord_names": chord_names,
+            "root": root_str,
+            "scale": scale_str,
+            "hint": "Pass 'notes' and 'clip_length' to create_track_with_clip",
+        }, indent=2)
+    except Exception as e:
+        return f"Error generating chord progression: {e}"
+
+
+@mcp.tool()
+def generate_bass_pattern(
+    ctx: Context,
+    root_note: Optional[str] = None,
+    scale_name: Optional[str] = None,
+    style: str = "deep_house",
+    bars: int = 1,
+    octave: int = 2,
+) -> str:
+    """
+    Generate a genre-authentic bass pattern as MIDI notes, ready for create_track_with_clip.
+
+    Each style encodes expert-crafted rhythm, pitch movement, and velocity curves. The root
+    note anchors all pitches; pitch offsets in the pattern are semitone movements from the root.
+
+    Parameters:
+    - root_note:  Root note string like "A2". Default: Ableton's current scale root (at octave 2).
+    - scale_name: Scale for validation/context. Default: Ableton's current scale.
+    - style:      Genre pattern. One of: deep_house, techno, hip_hop, funk, reggae,
+                  drum_and_bass, afrobeats, pop, latin, jazz. Default: "deep_house".
+    - bars:       Number of bars to generate (pattern repeats). Default: 1.
+    - octave:     Root octave. Default: 2 (sub-bass register).
+
+    Returns "notes", "clip_length", "style", and scale context.
+    """
+    try:
+        if style not in BASS_RHYTHM_PATTERNS:
+            return f"Error: unknown style '{style}'. Valid: {sorted(BASS_RHYTHM_PATTERNS)}"
+
+        ableton = get_ableton_connection()
+        _, intervals, root_str, scale_str = _resolve_scale_context(ableton, root_note, scale_name)
+
+        # Build root at target octave
+        root_pc = _note_name_to_midi(root_str) % 12
+        root_midi = root_pc + (octave + 1) * 12
+
+        # Build scale pitch set for snapping
+        scale_pitches = set()
+        for oct_shift in range(-1, 3):
+            for iv in intervals:
+                p = root_midi + oct_shift * 12 + iv
+                if 0 <= p <= 127:
+                    scale_pitches.add(p)
+
+        pattern = BASS_RHYTHM_PATTERNS[style]
+        beats_per_bar = 4.0
+        notes = []
+        for bar in range(bars):
+            bar_offset = bar * beats_per_bar
+            for (beat_off, semitone_off, dur, vel) in pattern:
+                raw_pitch = root_midi + semitone_off
+                # Snap to nearest scale pitch
+                if scale_pitches:
+                    raw_pitch = min(scale_pitches, key=lambda p: abs(p - raw_pitch))
+                raw_pitch = max(0, min(127, raw_pitch))
+                notes.append({
+                    "pitch": raw_pitch,
+                    "start_time": bar_offset + beat_off,
+                    "duration": dur,
+                    "velocity": min(127, max(1, vel)),
+                    "mute": False,
+                })
+
+        clip_length = bars * beats_per_bar
+        return json.dumps({
+            "notes": notes,
+            "clip_length": clip_length,
+            "style": style,
+            "root": root_str,
+            "scale": scale_str,
+            "hint": "Pass 'notes' and 'clip_length' to create_track_with_clip",
+        }, indent=2)
+    except Exception as e:
+        return f"Error generating bass pattern: {e}"
+
+
+@mcp.tool()
+def generate_melody(
+    ctx: Context,
+    root_note: Optional[str] = None,
+    scale_name: Optional[str] = None,
+    bars: int = 2,
+    density: str = "medium",
+    contour: str = "arch",
+    octave_range: int = 1,
+    start_degree: int = 1,
+    velocity_min: int = 70,
+    velocity_max: int = 100,
+) -> str:
+    """
+    Generate a melodic phrase using a musically-aware algorithm.
+
+    Motion is step-biased (60% step, 25% leap, 15% rest). Contour shapes the pitch tendency
+    across the phrase. The result sounds intentional, not random.
+
+    Parameters:
+    - root_note:    Root note string like "D4". Default: Ableton's current scale root.
+    - scale_name:   Scale name. Default: Ableton's current scale.
+    - bars:         Length in bars. Default: 2.
+    - density:      Note density. "sparse" (8th grid, 50% fill), "medium" (8th grid, 70%),
+                    "dense" (16th grid, 80%). Default: "medium".
+    - contour:      Melodic shape. "arch" (rise then fall), "ascending", "descending",
+                    "static" (stays near start), "random". Default: "arch".
+    - octave_range: How many octaves the melody can span. Default: 1.
+    - start_degree: Scale degree to begin on (1=root). Default: 1.
+    - velocity_min: Minimum note velocity. Default: 70.
+    - velocity_max: Maximum note velocity. Default: 100.
+
+    Returns "notes", "clip_length", "scale", "root".
+    """
+    import random as _random
+
+    try:
+        ableton = get_ableton_connection()
+        _, intervals, root_str, scale_str = _resolve_scale_context(ableton, root_note, scale_name)
+        root_midi = _note_name_to_midi(root_str)
+
+        # Build scale pitch pool
+        pitches = _build_scale_pitches(root_midi, intervals, octave_range + 1)
+        # Trim to a comfortable melodic range (root to root + octave_range octaves)
+        pitches = [p for p in pitches if root_midi <= p <= root_midi + octave_range * 12]
+        if not pitches:
+            pitches = [root_midi]
+
+        # Grid and fill settings
+        density_settings = {
+            "sparse": (0.5,  0.5),
+            "medium": (0.5,  0.7),
+            "dense":  (0.25, 0.8),
+        }
+        grid_size, fill_prob = density_settings.get(density, (0.5, 0.7))
+
+        clip_length = bars * 4.0
+        total_slots = int(clip_length / grid_size)
+
+        # Starting pitch
+        start_idx = min(start_degree - 1, len(pitches) - 1)
+        current_idx = start_idx
+
+        notes = []
+        for slot in range(total_slots):
+            t = slot * grid_size
+            progress = t / clip_length  # 0→1 across the phrase
+
+            # Contour bias: preferred direction
+            if contour == "arch":
+                bias = 1 if progress < 0.5 else -1
+            elif contour == "ascending":
+                bias = 1
+            elif contour == "descending":
+                bias = -1
+            elif contour == "static":
+                bias = 0
+            else:
+                bias = 0
+
+            # Decide motion type: step, leap, or rest
+            roll = _random.random()
+            if roll < 0.15:
+                continue  # rest
+
+            if roll < 0.40:
+                # Leap: 3–4 scale steps
+                step = _random.choice([3, 4]) * (bias if bias != 0 else _random.choice([-1, 1]))
+            else:
+                # Step: 1–2 scale steps
+                step = _random.choice([1, 2]) * (bias if bias != 0 else _random.choice([-1, 1]))
+
+            current_idx = max(0, min(len(pitches) - 1, current_idx + step))
+
+            # Fill probability gate
+            if _random.random() > fill_prob:
+                continue
+
+            vel = _random.randint(velocity_min, velocity_max)
+            notes.append({
+                "pitch": pitches[current_idx],
+                "start_time": t,
+                "duration": grid_size * _random.choice([1, 1, 2]),  # vary duration
+                "velocity": vel,
+                "mute": False,
+            })
+
+        return json.dumps({
+            "notes": notes,
+            "clip_length": clip_length,
+            "scale": scale_str,
+            "root": root_str,
+            "hint": "Pass 'notes' and 'clip_length' to create_track_with_clip",
+        }, indent=2)
+    except Exception as e:
+        return f"Error generating melody: {e}"
+
+
+@mcp.tool()
+def humanize_notes(
+    ctx: Context,
+    notes: List[Dict],
+    timing_amount: float = 0.02,
+    velocity_amount: int = 10,
+    duration_amount: float = 0.05,
+    seed: Optional[int] = None,
+) -> str:
+    """
+    Apply subtle human-feel variations to a list of MIDI notes.
+
+    Adds small random offsets to timing, velocity, and duration to break the mechanical
+    feel of programmatic patterns. Use after generate_chord_progression, generate_bass_pattern,
+    or generate_melody before passing notes to add_notes_to_clip.
+
+    Parameters:
+    - notes:            List of note dicts (pitch, start_time, duration, velocity, mute).
+    - timing_amount:    Max timing shift in beats (±). Default: 0.02 (~5ms at 120 BPM).
+    - velocity_amount:  Max velocity variation (±). Default: 10.
+    - duration_amount:  Max duration variation (±). Default: 0.05 beats.
+    - seed:             Optional integer seed for reproducibility.
+
+    Returns {"notes": [...]} — pass directly to add_notes_to_clip or create_track_with_clip.
+    """
+    import random as _random
+    if seed is not None:
+        _random.seed(seed)
+
+    try:
+        humanized = []
+        for note in notes:
+            n = dict(note)
+            n["start_time"] = max(0.0, n.get("start_time", 0.0) + _random.uniform(-timing_amount, timing_amount))
+            n["duration"]   = max(0.01, n.get("duration", 0.25) + _random.uniform(-duration_amount, duration_amount))
+            n["velocity"]   = max(1, min(127, n.get("velocity", 80) + _random.randint(-velocity_amount, velocity_amount)))
+            humanized.append(n)
+        return json.dumps({"notes": humanized}, indent=2)
+    except Exception as e:
+        return f"Error humanizing notes: {e}"
 
 
 # Main execution

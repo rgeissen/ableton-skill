@@ -38,7 +38,12 @@ class AbletonMCP(ControlSurface):
         
         # Cache the song reference for easier access
         self._song = self.song()
-        
+
+        # Event subscription state
+        self._event_queue = []
+        self._event_lock = threading.Lock()
+        self._active_listeners = {}  # event_type -> listener callable
+
         # Start the socket server
         self.start_server()
         
@@ -201,6 +206,10 @@ class AbletonMCP(ControlSurface):
         except Exception as e:
             self.log_message("Error in client handler: " + str(e))
         finally:
+            try:
+                self._unsubscribe_all()
+            except:
+                pass
             try:
                 client.close()
             except:
@@ -406,6 +415,14 @@ class AbletonMCP(ControlSurface):
                 response["result"] = self._get_playback_position()
             elif command_type == "get_scale_mode":
                 response["result"] = self._get_scale_mode()
+            elif command_type == "subscribe_to_events":
+                event_types = params.get("event_types", [])
+                response["result"] = self._subscribe_to_events(event_types)
+            elif command_type == "get_pending_events":
+                response["result"] = self._get_pending_events()
+            elif command_type == "unsubscribe_from_events":
+                event_types = params.get("event_types", None)
+                response["result"] = self._unsubscribe_from_events(event_types)
             else:
                 response["status"] = "error"
                 response["message"] = "Unknown command: " + command_type
@@ -1542,3 +1559,94 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error getting browser items at path: {0}".format(str(e)))
             self.log_message(traceback.format_exc())
             raise
+
+    # ---------------------------------------------------------------------------
+    # Event Subscription
+    # ---------------------------------------------------------------------------
+
+    _SUBSCRIBABLE_EVENTS = {
+        "tempo":            "add_tempo_listener",
+        "is_playing":       "add_is_playing_listener",
+        "current_song_time":"add_current_song_time_listener",
+        "track_count":      "add_tracks_listener",
+    }
+    _UNSUBSCRIBABLE_EVENTS = {
+        "tempo":            "remove_tempo_listener",
+        "is_playing":       "remove_is_playing_listener",
+        "current_song_time":"remove_current_song_time_listener",
+        "track_count":      "remove_tracks_listener",
+    }
+
+    def _snapshot_for(self, event_type):
+        try:
+            if event_type == "tempo":
+                return {"tempo": self._song.tempo}
+            if event_type == "is_playing":
+                return {"is_playing": self._song.is_playing}
+            if event_type == "current_song_time":
+                return {"position": self._song.current_song_time}
+            if event_type == "track_count":
+                return {"track_count": len(self._song.tracks)}
+        except Exception:
+            pass
+        return {}
+
+    def _make_listener(self, event_type):
+        def listener():
+            with self._event_lock:
+                self._event_queue.append({
+                    "type": event_type,
+                    "timestamp": time.time(),
+                    "data": self._snapshot_for(event_type),
+                })
+        return listener
+
+    def _subscribe_to_events(self, event_types):
+        subscribed = []
+        failed = []
+        for et in event_types:
+            if et in self._active_listeners:
+                subscribed.append(et)
+                continue
+            add_method = self._SUBSCRIBABLE_EVENTS.get(et)
+            if not add_method or not hasattr(self._song, add_method):
+                failed.append(et)
+                continue
+            try:
+                fn = self._make_listener(et)
+                getattr(self._song, add_method)(fn)
+                self._active_listeners[et] = fn
+                subscribed.append(et)
+            except Exception as e:
+                self.log_message("Failed to subscribe to {}: {}".format(et, str(e)))
+                failed.append(et)
+        result = {"subscribed": subscribed}
+        if failed:
+            result["failed"] = failed
+        return result
+
+    def _get_pending_events(self):
+        with self._event_lock:
+            events = list(self._event_queue)
+            self._event_queue = []
+        return {"events": events, "count": len(events)}
+
+    def _unsubscribe_from_events(self, event_types=None):
+        if event_types is None:
+            event_types = list(self._active_listeners.keys())
+        unsubscribed = []
+        for et in event_types:
+            fn = self._active_listeners.pop(et, None)
+            if fn is None:
+                continue
+            remove_method = self._UNSUBSCRIBABLE_EVENTS.get(et)
+            if remove_method and hasattr(self._song, remove_method):
+                try:
+                    getattr(self._song, remove_method)(fn)
+                except Exception as e:
+                    self.log_message("Error removing listener for {}: {}".format(et, str(e)))
+            unsubscribed.append(et)
+        return {"unsubscribed": unsubscribed}
+
+    def _unsubscribe_all(self):
+        self._unsubscribe_from_events(None)

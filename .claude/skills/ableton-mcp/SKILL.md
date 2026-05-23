@@ -5,12 +5,13 @@ description: >
   wants to interact with Ableton Live — including creating tracks, building beats or melodies,
   composing MIDI patterns, loading instruments or drum kits, controlling playback, adjusting
   tempo, mixing (volume/pan/mute/solo), editing device parameters, browsing the Live library,
-  duplicating or deleting clips and tracks, reading back MIDI notes, or automating any session
-  workflow. Trigger this skill for any request mentioning Ableton, Live, tracks, clips, MIDI,
-  beats, drums, instruments, BPM, mix, mute, solo, device, synth, or session control — even
-  if phrased casually ("make a beat", "add a bass line", "solo that track", "turn up the
-  filter", "save the set"). Always use this skill before attempting to operate Ableton via
-  the browser/keyboard.
+  duplicating or deleting clips and tracks, reading back MIDI notes, generating chords,
+  progressions, bass patterns or melodies, or automating any session workflow. Trigger this
+  skill for any request mentioning Ableton, Live, tracks, clips, MIDI, beats, drums,
+  instruments, BPM, mix, mute, solo, device, synth, chord, bass line, melody, scale, key,
+  or session control — even if phrased casually ("make a beat", "add a bass line", "write
+  a chord progression in D minor", "solo that track", "turn up the filter", "save the set").
+  Always use this skill before attempting to operate Ableton via the browser/keyboard.
 compatibility: "Requires AbletonMCP MCP server running as a Remote Script in Ableton Live's MIDI preferences."
 ---
 
@@ -19,16 +20,18 @@ compatibility: "Requires AbletonMCP MCP server running as a Remote Script in Abl
 Control Ableton Live via the AbletonMCP MCP server. The server communicates directly with
 Live's Python API — changes are instant and reflected in the session in real time.
 
+> For music theory, scales, chord voicings, genre bass patterns, and melody generation —
+> see the [Music Theory Guide](#music-theory-guide) section at the bottom of this document.
+
 ---
 
 ## First Step: Always Orient Yourself
 
-Before making any changes, call `get_session_info` to understand the current state:
-- How many tracks exist and what type they are
-- Current tempo and time signature
-- Return track count
-
-Then call `get_track_info` for relevant tracks to inspect clips, devices, volume, mute/solo state.
+Before making any changes, call `get_session_info(include_track_names=True)` to understand
+the current state (tracks, tempo, time signature). For a quick structured overview of all
+tracks, prefer `get_all_tracks_info()` — it returns type, mute, solo, volume, device count,
+and clip count for every track in one call. Only call `get_track_info` for tracks you need
+to inspect in detail (clips, device names).
 
 **Never assume track indices** — they shift when tracks are added/deleted. Always verify.
 
@@ -39,12 +42,13 @@ Then call `get_track_info` for relevant tracks to inspect clips, devices, volume
 ### Session
 | Tool | Purpose | Key params |
 |---|---|---|
-| `get_session_info` | Full session overview (tracks, tempo, return tracks, master) | — |
+| `get_session_info` | Session overview — tempo, time sig, track/return counts | `include_track_names` (bool) |
+| `get_all_tracks_info` | Compact summary of every track (type, mute, solo, vol, device/clip count) | — |
 | `set_tempo` | Change BPM | `tempo` (float) |
 | `start_playback` | Press Play | — |
 | `stop_playback` | Press Stop | — |
 | `get_playback_position` | Current beat position + is_playing state | — |
-| `get_scale_mode` | Get current root note, root note name, and scale name | — |
+| `get_scale_mode` | Get current root note and scale name from Ableton | — |
 | `set_scale_mode` | Set root note, scale name, and/or in-key highlighting | `root_note` (0–11), `scale_name`, `in_key` (bool) |
 | `undo` | Undo the last action | — |
 
@@ -53,7 +57,7 @@ Then call `get_track_info` for relevant tracks to inspect clips, devices, volume
 |---|---|---|
 | `create_midi_track` | Add a new MIDI track | `index` (-1 = end) |
 | `create_audio_track` | Add a new audio track | `index` (-1 = end) |
-| `get_track_info` | Inspect a track (clips, devices, name, mute/solo, volume) | `track_index` |
+| `get_track_info` | Inspect a single track in detail | `track_index`, `include_clips` (bool), `include_devices` (bool) |
 | `set_track_name` | Rename a track | `track_index`, `name` |
 | `set_track_mixer` | Set volume and/or pan | `track_index`, `volume` (0.0–1.0), `panning` (-1.0 to 1.0) |
 | `set_track_mute` | Mute or unmute | `track_index`, `mute` (bool) |
@@ -72,6 +76,12 @@ Then call `get_track_info` for relevant tracks to inspect clips, devices, volume
 | `fire_clip` | Launch/trigger a clip | `track_index`, `clip_index` |
 | `stop_clip` | Stop a playing clip | `track_index`, `clip_index` |
 
+### Composite (Multi-Step in One Call)
+| Tool | Purpose | Key params |
+|---|---|---|
+| `create_track_with_clip` | Create MIDI track + clip + notes in one call | `track_name`, `notes[]`, `clip_length`, `clip_index`, `clip_name?`, `track_index?` |
+| `search_and_load_sound` | Search browser by tags and load onto a track in one call | `track_index`, `tags[]`, `category?`, `result_index?` |
+
 ### Devices (Instruments & FX)
 | Tool | Purpose | Key params |
 |---|---|---|
@@ -85,10 +95,26 @@ Then call `get_track_info` for relevant tracks to inspect clips, devices, volume
 | Tool | Purpose | Key params |
 |---|---|---|
 | `get_browser_tree` | List top-level browser categories | `category_type` (all / instruments / sounds / drums / audio_effects / midi_effects) |
-| `get_browser_items_at_path` | Drill into a folder — returns immediate children with `path` hints on subfolders | `path` ("category/folder/subfolder") |
-| `get_browser_tags` | List all tags available in the browser database | `category` (all / sounds / instruments / drums / audio_effects / midi_effects / max_for_live / plugins / clips / samples / grooves / tunings) |
-| `search_by_tags` | Search browser by tags (AND logic — item must have ALL tags) | `tags[]`, `category?`, `limit?` (default 50) |
-| `load_sound_by_path` | **Preferred load method.** Navigate directly to a browser_path and load onto a track — no URI lookup needed | `track_index`, `browser_path` |
+| `get_browser_items_at_path` | Drill into a folder — returns immediate children with `path` hints on subfolders | `path`, `item_type` ("all" / "folder" / "loadable") |
+| `get_browser_tags` | List tags available in the browser database | `category?`, `prefix?` (filter tag names by prefix) |
+| `search_by_tags` | Search browser by tags (AND logic) | `tags[]`, `category?`, `limit?`, `offset?` (for pagination) |
+| `load_sound_by_path` | **Preferred load method.** Navigate directly to a browser_path and load onto a track | `track_index`, `browser_path` |
+
+### Music Theory (generate notes — no side effects until passed to clip tools)
+| Tool | Purpose | Key params |
+|---|---|---|
+| `generate_chord` | Generate a single chord as note dicts | `root_note?`, `chord_type`, `voicing`, `octave_shift?`, `scale_name?` |
+| `generate_chord_progression` | Generate a diatonic chord progression | `degrees[]`, `root_note?`, `scale_name?`, `bars_per_chord?`, `voicing?` |
+| `generate_bass_pattern` | Generate a genre-authentic bass pattern | `root_note?`, `scale_name?`, `style`, `bars?`, `octave?` |
+| `generate_melody` | Generate a melodic phrase (step-biased, contour-shaped) | `root_note?`, `scale_name?`, `bars?`, `density?`, `contour?` |
+| `humanize_notes` | Add micro-variations to timing, velocity, duration | `notes[]`, `timing_amount?`, `velocity_amount?`, `duration_amount?`, `seed?` |
+
+### Events (observe live state changes)
+| Tool | Purpose | Key params |
+|---|---|---|
+| `subscribe_to_events` | Start listening for Ableton state changes | `event_types[]` (tempo, is_playing, current_song_time, track_count) |
+| `get_pending_events` | Drain queued events since last call | — |
+| `unsubscribe_from_events` | Stop listening (pass null to unsubscribe all) | `event_types?[]` |
 
 ---
 
@@ -132,7 +158,7 @@ Every device on every track type (regular, return, master) is reachable. The API
 
 ### Step 1 — find the device index
 ```
-get_track_info(track_index)   →   devices[]: [{index, name, class_name, type}, …]
+get_track_info(track_index, include_devices=True)   →   devices[]: [{index, name, class_name, type}, …]
 ```
 
 ### Step 2 — get top-level parameters (and discover nested devices)
@@ -142,51 +168,53 @@ get_device_params(track_index, device_index)
 - Returns `parameters[]` — the device's own knobs (macros for racks).
 - If the device is a **Rack**, also returns `contents` with a map of every nested device.
   Each entry includes a `chain_path` list — **copy it unchanged** into the next call.
-- `"has_nested_devices": true` on an entry means it is itself a rack; call `get_device_params`
-  with its `chain_path` to see another level of `contents`.
 
 ### Step 3 — drill into a nested device
 ```
 get_device_params(track_index, device_index, chain_path=[…])
 ```
-Pass the exact `chain_path` from the `contents` entry. Works at any depth.
 
 ### Step 4 — set a parameter
 ```
 set_device_param(track_index, device_index, param_index, value, chain_path=[…])
 ```
-Same `chain_path` as the read call. `value` is clamped to the param's native min/max automatically.
+`value` is clamped to the param's native min/max automatically.
 
 ### chain_path format
-A list of step dicts. Each step navigates one rack layer:
 ```json
-{"chain_index": 0, "device_index": 0}              // Instrument / Effect Rack
-{"pad_note": 36, "chain_index": 0, "device_index": 0}  // Drum Rack pad (note 36 = C1)
+{"chain_index": 0, "device_index": 0}                  // Instrument / Effect Rack
+{"pad_note": 36, "chain_index": 0, "device_index": 0}  // Drum Rack pad
 ```
-Multiple steps = multiple layers deep. In practice just copy the value from the response.
-
-### Drum Rack: find which pad is which note
-```
-get_drum_rack_pads(track_index, device_index)
-→ [{note: 36, name: "Kick", mute, solo, chains: ["Kick"]}, …]
-```
-Only loaded pads are returned. Useful when you need to know the note number before
-constructing a `chain_path` step manually.
+In practice: copy verbatim from the response. Never construct from scratch.
 
 ---
 
 ## Typical Workflows
 
-### Create a MIDI track with instrument and pattern
+### Compose a track with chord progression + bass in one workflow
 ```
-1. get_session_info                     → note current track count
-2. create_midi_track                    → get new track index
+1. get_scale_mode()                         → get current key context from Ableton
+2. generate_chord_progression(degrees=[1,5,6,4], root_note="C4", scale_name="major")
+   → {notes, clip_length, chord_names}
+3. humanize_notes(notes, timing_amount=0.015)
+4. create_track_with_clip(track_name="Chords", notes=..., clip_length=4.0)
+5. generate_bass_pattern(style="deep_house", root_note="C2")
+   → {notes, clip_length}
+6. humanize_notes(notes, timing_amount=0.02)
+7. create_track_with_clip(track_name="Bass", notes=...)
+8. start_playback()
+```
+
+### Create a MIDI track with instrument and custom pattern
+```
+1. get_all_tracks_info()                    → orient, find free slot
+2. create_midi_track                        → get new track index
 3. set_track_name
-4. search_by_tags(tags=["..."], category="instruments")  → find browser_path
-5. load_sound_by_path(track_index, browser_path)         → load in one step
-6. create_clip(length=8.0)              → 2-bar clip in slot 0
-7. add_notes_to_clip                    → write notes
-8. set_clip_name
+4. search_and_load_sound(track_index, tags=["pad", "warm"], category="sounds")
+5. generate_melody(root_note="D4", scale_name="dorian", bars=2, contour="arch")
+6. humanize_notes(notes, timing_amount=0.02, velocity_amount=8)
+7. create_clip(length=clip_length)
+8. add_notes_to_clip
 9. fire_clip
 ```
 
@@ -204,15 +232,21 @@ constructing a `chain_path` step manually.
 ```
 1. search_by_tags(tags=["pad", "warm"], category="sounds")
    → returns [{name, type, source, browser_path}, ...]
-2. load_sound_by_path(track_index, browser_path)   ← use directly, no URI lookup needed
+2. load_sound_by_path(track_index, browser_path)
 ```
+Or use `search_and_load_sound` to do both in one call.
 
-Tag search uses AND logic — results must carry every tag supplied. Start broad (one tag)
-and narrow down. Only call `get_browser_tags` if you need to discover what tags exist.
+### Monitor playback state in real time
+```
+1. subscribe_to_events(["tempo", "is_playing", "current_song_time"])
+2. [user starts/stops playback or changes tempo in Ableton]
+3. get_pending_events()  → [{type:"is_playing", data:{is_playing:true}}, …]
+4. unsubscribe_from_events()
+```
 
 ### Mix a track
 ```
-set_track_mixer(track_index, volume=0.75, panning=-0.3)  → volume + pan together
+set_track_mixer(track_index, volume=0.75, panning=-0.3)
 set_track_mute(track_index, mute=True)
 set_track_solo(track_index, solo=True)
 ```
@@ -220,54 +254,8 @@ set_track_solo(track_index, solo=True)
 ### Edit an existing clip non-destructively
 ```
 1. get_clip_notes(track_index, clip_index)    → read current notes
-2. modify the notes array in memory
+2. modify the notes array
 3. add_notes_to_clip(...)                     → write back (full replacement)
-```
-
-### Duplicate and vary a pattern
-```
-duplicate_clip(track_index=0, clip_index=0, target_clip_index=1)
-→ copies to slot 1 of same track
-
-get_clip_notes(0, 1)
-add_notes_to_clip(0, 1, modified_notes)      → write variation into the copy
-```
-
-### Tweak a synth parameter (top-level device)
-```
-get_device_params(track_index=2, device_index=0)
-→ {parameters: [{index:5, name:"Filter Freq", value:1000.0, min:20.0, max:20000.0}, …]}
-
-set_device_param(track_index=2, device_index=0, param_index=5, value=2500.0)
-```
-
-### Tweak a parameter inside a Drum Rack pad (e.g. Simpler on the kick)
-```
-get_device_params(track_index=0, device_index=0)
-→ {contents: {type:"drum_rack", drum_pads: [
-     {note:36, name:"Kick", chains:[{chain_index:0, devices:[
-       {name:"Simpler", chain_path:[{"pad_note":36,"chain_index":0,"device_index":0}]}
-     ]}]}, …
-   ]}}
-
-get_device_params(track_index=0, device_index=0,
-                  chain_path=[{"pad_note":36,"chain_index":0,"device_index":0}])
-→ {parameters: [{index:3, name:"Start", value:0.0, min:0.0, max:1.0}, …]}
-
-set_device_param(track_index=0, device_index=0, param_index=3, value=0.1,
-                 chain_path=[{"pad_note":36,"chain_index":0,"device_index":0}])
-```
-
-### Tweak a parameter on a return track
-```
-get_device_params(return_track_index=0, device_index=0)   // Return A
-set_device_param(return_track_index=0, device_index=0, param_index=2, value=0.5)
-```
-
-### Tweak a parameter on the master track
-```
-get_device_params(is_master=True, device_index=0)
-set_device_param(is_master=True, device_index=0, param_index=0, value=0.8)
 ```
 
 ---
@@ -277,20 +265,32 @@ set_device_param(is_master=True, device_index=0, param_index=0, value=0.8)
 - **Track indices are 0-based**, do not include return tracks or master — use `return_track_index` / `is_master` for those
 - **Clip slot indices are 0-based** (Scene 1 = index 0)
 - `add_notes_to_clip` **replaces all notes** — use `get_clip_notes` first to preserve existing content
-- `duplicate_clip` without `target_track_index` copies within the same track
-- `set_device_param` values use the device's native range — always read `get_device_params` first
-- `load_drum_kit` requires both `rack_uri` (Drum Rack device URI) AND `kit_path` (preset path)
-- `delete_track` shifts all subsequent track indices — re-read session info after any deletion
-- **Saving sets** is not supported — the Live Python API exposes no save method on the Song object. Use Cmd+S in Ableton directly.
+- `get_track_info` defaults to `include_clips=False, include_devices=False` — pass `True` only when you need that data
 - `search_by_tags` reads Ableton's local database directly — Live does not need to be running
 - `search_by_tags` uses AND logic — each additional tag narrows results; start with one tag if unsure
-- `search_by_tags` returns a `browser_path` — pass it directly to `load_sound_by_path`; never call `get_browser_items_at_path` just to retrieve a URI from a search result
-- `get_browser_items_at_path` folder children include a `path` hint — copy it unchanged into the next call, exactly like `chain_path` for devices
-- The MCP server must be running as a Remote Script in Live's MIDI preferences
-- `set_scale_mode` params are all optional — pass only what you want to change
-- `root_note` is 0–11: C=0, C#=1, D=2, D#=3, E=4, F=5, F#=6, G=7, G#=8, A=9, A#=10, B=11
-- Valid `scale_name` values: Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Locrian, Whole Tone, Minor Pentatonic, Major Pentatonic, Harmonic Minor, Melodic Minor
-- `get_device_params` on a rack returns **macros** in `parameters[]` and **nested devices** in `contents` — they are separate
-- `chain_path` is a list of step dicts — copy it verbatim from the `contents` response; never construct it from scratch unless you already know the structure
-- `get_drum_rack_pads` only returns pads that have something loaded (chains non-empty)
-- `drum_pads` in Live are indexed 0–127 by MIDI note number; `pad_note` in a `chain_path` step is that note number
+- `search_by_tags` returns a `browser_path` — pass it directly to `load_sound_by_path`
+- `get_browser_tags(prefix="...")` filters by tag name prefix — use when you know part of the tag
+- `delete_track` shifts all subsequent track indices — re-read session info after any deletion
+- **Saving sets** is not supported — use Cmd+S in Ableton directly
+- `root_note` in `set_scale_mode` is 0–11: C=0, C#=1, D=2 … B=11
+- Music theory tools (`generate_*`, `humanize_notes`) have no side effects — they only return note dicts. Always pass the result to `add_notes_to_clip` or `create_track_with_clip` to write it into Ableton.
+- Music theory tools auto-resolve root and scale from Ableton's current scale when not specified — set the key in Ableton first for hands-free context
+- `get_pending_events` clears the queue on each call — events are not repeated
+- Event subscriptions are automatically cleared when the client disconnects
+
+---
+
+## Music Theory
+
+The theory tools (`generate_chord`, `generate_chord_progression`, `generate_bass_pattern`,
+`generate_melody`, `humanize_notes`) have expert musical intelligence embedded in them —
+scales, diatonic chord qualities, genre bass patterns, and melody contours are all built in.
+
+**Quick reference:**
+- All `root_note` / `scale_name` params default to Ableton's current scale (set it in Live's Scale panel)
+- Bass styles: `deep_house`, `techno`, `hip_hop`, `funk`, `reggae`, `drum_and_bass`, `afrobeats`, `pop`, `latin`, `jazz`
+- Chord voicings: `close`, `open`, `drop2`, `spread`
+- Melody contours: `arch` (default), `ascending`, `descending`, `static`, `random`
+
+> For the full theory reference — scale tables, chord types, progression recipes, genre
+> bass details, melody parameters, and humanize amounts — invoke the **ableton-mcp-theory** skill.
