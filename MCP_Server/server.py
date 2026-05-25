@@ -920,6 +920,28 @@ def create_audio_track(ctx: Context, index: int = -1) -> str:
 
 
 @mcp.tool()
+def create_group_track(ctx: Context, index: int = -1) -> str:
+    """
+    Create a new empty group track in the Ableton session (requires Live 11+).
+
+    A group track acts as a folder that contains other tracks. After creating a group,
+    new MIDI or audio tracks created at adjacent indices will appear as children of the group.
+    Note: existing tracks cannot be moved into a group via the API — use Cmd+G in Ableton
+    to group an existing selection of tracks.
+
+    Parameters:
+    - index: The index to insert the group track at (-1 = end of list).
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("create_group_track", {"index": index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error creating group track: {str(e)}")
+        return f"Error creating group track: {str(e)}"
+
+
+@mcp.tool()
 def set_track_mixer(ctx: Context, track_index: int, volume: float = None, panning: float = None) -> str:
     """
     Set the volume and/or panning of a track.

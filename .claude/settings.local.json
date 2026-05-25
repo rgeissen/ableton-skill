@@ -29,7 +29,13 @@
       "Bash(/opt/miniconda3/envs/ableton-mcp/bin/python -c ' *)",
       "Edit(/.claude/skills/ableton-mcp-theory/**)",
       "Edit(/.claude/skills/ableton-mcp-sounds/**)",
-      "Edit(/.claude/skills/ableton-mcp-mix/**)"
+      "Edit(/.claude/skills/ableton-mcp-mix/**)",
+      "Bash(pip show *)",
+      "Read(//opt/miniconda3/envs/ableton-mcp/**)",
+      "Bash(find /opt/miniconda3 -name \"Song.py\" -o -name \"Song.pyi\" 2>/dev/null | head -5 *)",
+      "Read(//opt/miniconda3/**)",
+      "Bash(find \"/Applications/Ableton Live 12 Beta.app\" -name \"*.py\" 2>/dev/null | xargs grep -l \"create_group_track\\\\|create_midi_track\" 2>/dev/null | head -5 *)",
+      "Read(//Applications/Ableton Live 12 Beta.app/**)"
     ],
     "additionalDirectories": [
       "/Users/livin2rave/.claude/skills/ableton-mcp"

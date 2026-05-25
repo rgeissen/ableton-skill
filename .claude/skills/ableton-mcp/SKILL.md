@@ -58,14 +58,15 @@ For most tasks, load **one stage skill** alongside this base skill. Multi-stage 
 | Tool | Purpose | Key params |
 |---|---|---|
 | `get_session_info` | Tempo, time sig, track/return counts | `include_track_names` (bool) |
-| `get_all_tracks_info` | All tracks: name, type, color, mute, solo, vol, grouped, clip/device count | — |
-| `get_track_info` | Single track detail | `track_index`, `include_clips`, `include_devices` |
+| `get_all_tracks_info` | All tracks: name, type, **color**, mute, solo, vol, **is_grouped**, **group_index**, clip/device count | — |
+| `get_track_info` | Single track detail — also returns `color`, `is_grouped`, `group_index` | `track_index`, `include_clips`, `include_devices` |
 | `get_scale_mode` | Current root note + scale name | — |
 | `get_playback_position` | Beat position + is_playing | — |
 | `set_tempo` | Change BPM | `tempo` (float) |
 | `start_playback` | Press Play | — |
 | `stop_playback` | Press Stop | — |
 | `undo` | Undo last action | — |
+| `set_track_color` | Color-code a track (`#RRGGBB`) — use at any stage | `track_index`, `color` |
 
 ### Events (observe live state changes)
 | Tool | Purpose | Key params |
@@ -84,3 +85,5 @@ For most tasks, load **one stage skill** alongside this base skill. Multi-stage 
 - Saving sets is not supported via the API — use Cmd+S in Ableton directly
 - `search_by_tags` reads Ableton's SQLite database directly — Live does not need to be running
 - Event subscriptions auto-clear when the client disconnects
+- **Track grouping** — Group creation is not available via the Live Python API (`create_group_track` does not exist). Use Cmd+G in Ableton to create groups manually. `is_grouped` and `group_index` in track info show the current group hierarchy read from Live.
+- `set_track_color` accepts `#RRGGBB` hex strings — common conventions: drums `#FF2200`, bass `#8800FF`, chords `#00AAFF`, lead `#FFCC00`, FX `#008888`
