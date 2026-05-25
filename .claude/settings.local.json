@@ -27,7 +27,9 @@
       "Bash(brew uninstall *)",
       "Bash(/opt/miniconda3/envs/ableton-mcp/bin/python -c \"import MCP_Server.server; print\\('OK'\\)\")",
       "Bash(/opt/miniconda3/envs/ableton-mcp/bin/python -c ' *)",
-      "Edit(/.claude/skills/ableton-mcp-theory/**)"
+      "Edit(/.claude/skills/ableton-mcp-theory/**)",
+      "Edit(/.claude/skills/ableton-mcp-sounds/**)",
+      "Edit(/.claude/skills/ableton-mcp-mix/**)"
     ],
     "additionalDirectories": [
       "/Users/livin2rave/.claude/skills/ableton-mcp"

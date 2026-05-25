@@ -248,7 +248,7 @@ class AbletonMCP(ControlSurface):
                                  "create_audio_track", "set_track_mixer", "set_track_mute",
                                  "set_track_solo", "duplicate_clip", "delete_clip",
                                  "delete_track", "set_device_param", "undo",
-                                 "set_scale_mode"]:
+                                 "set_scale_mode", "set_track_color"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -350,6 +350,10 @@ class AbletonMCP(ControlSurface):
                             scale_name = params.get("scale_name", None)
                             in_key = params.get("in_key", None)
                             result = self._set_scale_mode(root_note, scale_name, in_key)
+                        elif command_type == "set_track_color":
+                            track_index = params.get("track_index", 0)
+                            color = params.get("color")
+                            result = self._set_track_color(track_index, color)
 
                         # Put the result in the queue
                         response_queue.put({"status": "success", "result": result})
@@ -466,6 +470,12 @@ class AbletonMCP(ControlSurface):
 
             track = self._song.tracks[track_index]
 
+            all_tracks = list(self._song.tracks)
+            is_grouped = hasattr(track, 'is_grouped') and bool(track.is_grouped)
+            group_index = None
+            if is_grouped and hasattr(track, 'group_track') and track.group_track in all_tracks:
+                group_index = all_tracks.index(track.group_track)
+
             result = {
                 "index": track_index,
                 "name": track.name,
@@ -476,6 +486,9 @@ class AbletonMCP(ControlSurface):
                 "arm": track.arm,
                 "volume": track.mixer_device.volume.value,
                 "panning": track.mixer_device.panning.value,
+                "color": "#{:06X}".format(track.color) if hasattr(track, 'color') else None,
+                "is_grouped": is_grouped,
+                "group_index": group_index,
             }
 
             if include_clips:
@@ -516,15 +529,23 @@ class AbletonMCP(ControlSurface):
     def _get_all_tracks_info(self):
         """Get compact summary of all tracks"""
         try:
+            all_tracks = list(self._song.tracks)
             tracks = []
-            for i, track in enumerate(self._song.tracks):
+            for i, track in enumerate(all_tracks):
+                is_grouped = hasattr(track, 'is_grouped') and bool(track.is_grouped)
+                group_index = None
+                if is_grouped and hasattr(track, 'group_track') and track.group_track in all_tracks:
+                    group_index = all_tracks.index(track.group_track)
                 tracks.append({
                     "index": i,
                     "name": track.name,
                     "type": "midi" if track.has_midi_input else "audio",
+                    "color": "#{:06X}".format(track.color) if hasattr(track, 'color') else None,
                     "mute": track.mute,
                     "solo": track.solo,
                     "volume": track.mixer_device.volume.value,
+                    "is_grouped": is_grouped,
+                    "group_index": group_index,
                     "device_count": len(track.devices),
                     "clip_count": sum(1 for s in track.clip_slots if s.has_clip),
                 })
@@ -1314,6 +1335,22 @@ class AbletonMCP(ControlSurface):
             return result
         except Exception as e:
             self.log_message("Error getting scale mode: " + str(e))
+            raise
+
+    def _set_track_color(self, track_index, color):
+        """Set track color. color is a hex string '#RRGGBB' or an integer."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            if isinstance(color, str):
+                color_int = int(color.lstrip('#'), 16)
+            else:
+                color_int = int(color)
+            track.color = color_int
+            return {"track_index": track_index, "color": "#{:06X}".format(track.color)}
+        except Exception as e:
+            self.log_message("Error setting track color: " + str(e))
             raise
 
     def _set_scale_mode(self, root_note, scale_name, in_key):

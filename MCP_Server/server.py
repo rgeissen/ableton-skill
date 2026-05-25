@@ -987,6 +987,31 @@ def set_track_solo(ctx: Context, track_index: int, solo: bool) -> str:
 
 
 @mcp.tool()
+def set_track_color(ctx: Context, track_index: int, color: str) -> str:
+    """
+    Set the color of a track.
+
+    Parameters:
+    - track_index: The index of the track.
+    - color:       Hex color string in '#RRGGBB' format, e.g. '#FF6600' for orange.
+
+    Common production color conventions:
+    - Drums/percussion: #FF0000 (red) or #FF6600 (orange)
+    - Bass: #8800FF (purple) or #0000FF (blue)
+    - Chords/harmony: #00AA00 (green) or #00AAFF (cyan)
+    - Melody/lead: #FFFF00 (yellow) or #FF00FF (pink)
+    - FX/atmosphere: #888888 (grey) or #00FFFF (cyan)
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_track_color", {"track_index": track_index, "color": color})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting track color: {str(e)}")
+        return f"Error setting track color: {str(e)}"
+
+
+@mcp.tool()
 def delete_track(ctx: Context, track_index: int) -> str:
     """
     Delete a track from the session.
