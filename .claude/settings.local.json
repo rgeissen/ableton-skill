@@ -51,11 +51,19 @@
       "Bash(mkdir -p /Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills/ableton-mcp-arrange)",
       "Edit(/.claude/skills/ableton-mcp-arrange/**)",
       "Edit(/.claude/skills/ableton-mcp-compose/**)",
-      "Bash(awk '{print $2}')"
+      "Bash(awk '{print $2}')",
+      "Bash(gh repo *)",
+      "Bash(mv ableton-mcp-theory *)",
+      "Bash(mv ableton-mcp-compose *)",
+      "Bash(mv ableton-mcp-sounds *)",
+      "Bash(mv ableton-mcp-arrange *)",
+      "Bash(mv ableton-mcp-mix *)",
+      "Bash(mv /Users/rainergeissendoerfer/my_private_code/ableton-mcp /Users/rainergeissendoerfer/my_private_code/ableton-skill && echo \"Done\" && ls /Users/rainergeissendoerfer/my_private_code/ | grep ableton)"
     ],
     "additionalDirectories": [
       "/Users/livin2rave/.claude/skills/ableton-mcp",
-      "/Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills"
+      "/Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills",
+      "/Users/rainergeissendoerfer/my_private_code"
     ]
   }
 }

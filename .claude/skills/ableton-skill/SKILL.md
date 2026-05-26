@@ -1,5 +1,5 @@
 ---
-name: ableton-mcp
+name: ableton-skill
 description: >
   Control Ableton Live directly via the AbletonMCP server. Use this skill whenever the user
   wants to interact with Ableton Live — creating tracks, building beats, composing MIDI,
@@ -8,7 +8,7 @@ description: >
   MIDI, beats, drums, instruments, BPM, mix, mute, solo, device, synth, chord, bass, melody,
   scale, or session control — even phrased casually ("make a beat", "add a bass line",
   "solo that track", "turn up the filter"). Always load this skill before any other
-  ableton-mcp-* skill.
+  ableton-skill-* skill.
 compatibility: "Requires AbletonMCP Remote Script running in Ableton Live's MIDI preferences."
 ---
 
@@ -42,11 +42,11 @@ Load the right skill for the task. Each skill is focused and only enters context
 
 | Stage | Skill | When to invoke |
 |---|---|---|
-| **Compose** | `ableton-mcp-compose` | Writing tracks, clips, MIDI notes, generating chords/bass/melody |
-| **Sounds** | `ableton-mcp-sounds` | Browser search, loading instruments/effects, tweaking device parameters |
-| **Arrange** | `ableton-mcp-arrange` | Scene management, song structure, Arrangement timeline, recording |
-| **Mix** | `ableton-mcp-mix` | Track levels, panning, mute/solo, return tracks, sends, EQ/compression |
-| **Theory** | `ableton-mcp-theory` | Deep music theory — scales, chord types, progression recipes, genre patterns |
+| **Compose** | `ableton-skill-compose` | Writing tracks, clips, MIDI notes, generating chords/bass/melody |
+| **Sounds** | `ableton-skill-sounds` | Browser search, loading instruments/effects, tweaking device parameters |
+| **Arrange** | `ableton-skill-arrange` | Scene management, song structure, Arrangement timeline, recording |
+| **Mix** | `ableton-skill-mix` | Track levels, panning, mute/solo, return tracks, sends, EQ/compression |
+| **Theory** | `ableton-skill-theory` | Deep music theory — scales, chord types, progression recipes, genre patterns |
 
 For most tasks, load **one stage skill** alongside this base skill. Multi-stage tasks
 (e.g. compose + mix) load two. Never load all skills preemptively.

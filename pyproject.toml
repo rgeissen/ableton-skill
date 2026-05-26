@@ -1,5 +1,5 @@
 [project]
-name = "ableton-mcp"
+name = "ableton-skill"
 version = "1.0.0"
 description = "Ableton Live integration through the Model Context Protocol"
 readme = "README.md"
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ableton-mcp = "MCP_Server.server:main"
+ableton-skill = "MCP_Server.server:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -28,5 +28,5 @@ build-backend = "setuptools.build_meta"
 packages = ["MCP_Server"]
 
 [project.urls]
-"Homepage" = "https://github.com/ahujasid/ableton-mcp"
-"Bug Tracker" = "https://github.com/ahujasid/ableton-mcp/issues"
+"Homepage" = "https://github.com/rgeissen/ableton-skill"
+"Bug Tracker" = "https://github.com/rgeissen/ableton-skill/issues"

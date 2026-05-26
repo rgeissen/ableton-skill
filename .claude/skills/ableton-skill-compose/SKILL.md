@@ -1,12 +1,12 @@
 ---
-name: ableton-mcp-compose
+name: ableton-skill-compose
 description: >
   Composition and arrangement tools for AbletonMCP. Use this skill for: creating MIDI or
   audio tracks, writing clips and notes, generating chords/progressions/bass lines/melodies,
   humanizing patterns, arranging clips (duplicate, delete, fire, stop), naming and coloring
   tracks, setting scale/tempo. Trigger for any request about writing music, building a beat,
   creating a pattern, composing a progression, or structuring an arrangement.
-compatibility: "Requires ableton-mcp skill loaded. Part of the AbletonMCP skill suite."
+compatibility: "Requires ableton-skill skill loaded. Part of the AbletonMCP skill suite."
 ---
 
 # Compose — Tracks, Clips & Music Generation
@@ -15,7 +15,7 @@ This skill covers the **Basic Beat** and **Arrangement** stages. Orient yourself
 `get_all_tracks_info()` from the base skill, then use the tools below.
 
 > For deep music theory — scales, chord recipes, genre bass details, melody parameters —
-> invoke the **ableton-mcp-theory** skill.
+> invoke the **ableton-skill-theory** skill.
 
 ---
 

@@ -1,14 +1,14 @@
 ---
-name: ableton-mcp-theory
+name: ableton-skill-theory
 description: >
   Music theory reference and generation guide for the AbletonMCP server. Use this skill when
   you need detailed guidance on: scale names and intervals, chord types and voicings, diatonic
   progression recipes, genre-specific bass pattern styles, melody generation parameters, or
   humanization amounts. Also use it when the user asks about music theory in the context of
   Ableton (e.g. "what chords work in D dorian?", "what's a good bass style for techno?",
-  "how do I write a jazz ii-V-I?"). This skill complements the ableton-mcp skill — it covers
+  "how do I write a jazz ii-V-I?"). This skill complements the ableton-skill skill — it covers
   the musical intelligence behind the generate_* and humanize_notes tools.
-compatibility: "Companion to the ableton-mcp skill. Requires ableton-mcp to be active."
+compatibility: "Companion to the ableton-skill skill. Requires ableton-skill to be active."
 ---
 
 # AbletonMCP — Music Theory Guide

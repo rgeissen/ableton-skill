@@ -1,5 +1,5 @@
 # AbletonMCP - Ableton Live Model Context Protocol Integration
-[![smithery badge](https://smithery.ai/badge/@ahujasid/ableton-mcp)](https://smithery.ai/server/@ahujasid/ableton-mcp)
+[![smithery badge](https://smithery.ai/badge/@ahujasid/ableton-skill)](https://smithery.ai/server/@ahujasid/ableton-skill)
 
 AbletonMCP connects Ableton Live to Claude AI through the Model Context Protocol (MCP), allowing Claude to directly interact with and control Ableton Live. This integration enables prompt-assisted music production — from writing the first beat to building a full arrangement.
 
@@ -38,12 +38,12 @@ When using Claude Code or the Claude desktop app, AbletonMCP loads specialized s
 
 | Stage | Skill | Loaded when |
 |---|---|---|
-| Session control | `ableton-mcp` | Always — base orientation and transport |
-| Compose | `ableton-mcp-compose` | Writing beats, clips, chords, bass, melody |
-| Sounds | `ableton-mcp-sounds` | Browsing library, loading instruments/effects, tweaking device parameters |
-| Arrange | `ableton-mcp-arrange` | Scene management, song structure, Arrangement timeline |
-| Mix | `ableton-mcp-mix` | Levels, panning, sends, EQ, compression |
-| Theory | `ableton-mcp-theory` | Deep music theory — scales, chord recipes, genre patterns |
+| Session control | `ableton-skill` | Always — base orientation and transport |
+| Compose | `ableton-skill-compose` | Writing beats, clips, chords, bass, melody |
+| Sounds | `ableton-skill-sounds` | Browsing library, loading instruments/effects, tweaking device parameters |
+| Arrange | `ableton-skill-arrange` | Scene management, song structure, Arrangement timeline |
+| Mix | `ableton-skill-mix` | Levels, panning, sends, EQ, compression |
+| Theory | `ableton-skill-theory` | Deep music theory — scales, chord recipes, genre patterns |
 
 For most tasks Claude loads one stage skill alongside the base. Multi-stage tasks (e.g. compose + mix) load two. The theory skill loads only when you ask a deep theory question.
 
@@ -51,10 +51,10 @@ For most tasks Claude loads one stage skill alongside the base. Multi-stage task
 
 ### Installing via Smithery
 
-To install Ableton Live Integration for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ahujasid/ableton-mcp):
+To install Ableton Live Integration for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ahujasid/ableton-skill):
 
 ```bash
-npx -y @smithery/cli install @ahujasid/ableton-mcp --client claude
+npx -y @smithery/cli install @ahujasid/ableton-skill --client claude
 ```
 
 ### Prerequisites
@@ -84,7 +84,7 @@ Otherwise, install from [uv's official website][https://docs.astral.sh/uv/gettin
         "AbletonMCP": {
             "command": "uvx",
             "args": [
-                "ableton-mcp"
+                "ableton-skill"
             ]
         }
     }
@@ -93,10 +93,10 @@ Otherwise, install from [uv's official website][https://docs.astral.sh/uv/gettin
 
 ### Cursor Integration
 
-Run ableton-mcp without installing it permanently through uvx. Go to Cursor Settings > MCP and paste this as a command:
+Run ableton-skill without installing it permanently through uvx. Go to Cursor Settings > MCP and paste this as a command:
 
 ```
-uvx ableton-mcp
+uvx ableton-skill
 ```
 
 ⚠️ Only run one instance of the MCP server (either on Cursor or Claude Desktop), not both

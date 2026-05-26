@@ -1,12 +1,12 @@
 ---
-name: ableton-mcp-mix
+name: ableton-skill-mix
 description: >
   Mixing tools for AbletonMCP. Use this skill for: setting track volume and pan, muting or
   soloing tracks, coloring tracks for session navigation, adjusting EQ or dynamics devices,
   working with return tracks and master track effects, balancing levels across tracks.
   Trigger for any request about mixing, levels, panning, EQ, compression, volume balancing,
   mute, solo, or sound enhancement at the mix stage.
-compatibility: "Requires ableton-mcp skill loaded. Part of the AbletonMCP skill suite."
+compatibility: "Requires ableton-skill skill loaded. Part of the AbletonMCP skill suite."
 ---
 
 # Mix — Levels, Color & Effects
@@ -38,7 +38,7 @@ first — it returns volume, mute, solo, and color for every track in one call.
 **Typical reverb/delay setup:**
 ```
 create_return_track()                          → return A
-# Load reverb via ableton-mcp-sounds
+# Load reverb via ableton-skill-sounds
 set_send_level(track_index=2, return_track_index=0, value=0.3)  → 30% of track 2 → reverb A
 ```
 

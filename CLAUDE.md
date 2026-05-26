@@ -33,8 +33,8 @@ The MCP server can also run in HTTP mode (`--server --port 5006`) for remote cli
 | `MCP_Server/server.py` | All MCP tools. Music theory data tables + helpers. SQLite helpers for tag-based search. |
 | `AbletonMCP_Remote_Script/__init__.py` | Command dispatcher + all Live API calls + event subscription system. |
 | `pyproject.toml` | Single dependency: `mcp[cli]>=1.3.0`. No other packages needed. |
-| `.claude/skills/ableton-mcp/SKILL.md` | Main skill — session control, all tool reference, workflows. |
-| `.claude/skills/ableton-mcp-theory/SKILL.md` | Music theory sub-skill — loaded on demand only. |
+| `.claude/skills/ableton-skill/SKILL.md` | Main skill — session control, all tool reference, workflows. |
+| `.claude/skills/ableton-skill-theory/SKILL.md` | Music theory sub-skill — loaded on demand only. |
 
 ---
 
@@ -172,7 +172,7 @@ Three thin wrapper tools: `subscribe_to_events`, `get_pending_events`, `unsubscr
 
 ## HTTP Server Mode
 
-Run `ableton-mcp --server --port 5006` to expose the MCP server over streamable-HTTP
+Run `ableton-skill --server --port 5006` to expose the MCP server over streamable-HTTP
 (for remote clients such as Uderia on the same LAN). The host is bound to `0.0.0.0`
 and FastMCP's DNS rebinding protection is disabled.
 
@@ -187,12 +187,12 @@ Six Claude Code skills live in `.claude/skills/`, one per production stage:
 
 | Skill | File | Loaded when |
 |---|---|---|
-| `ableton-mcp` | `ableton-mcp/SKILL.md` | Every session — base skill always loaded first |
-| `ableton-mcp-compose` | `ableton-mcp-compose/SKILL.md` | Writing notes, generating music, clip editing |
-| `ableton-mcp-sounds` | `ableton-mcp-sounds/SKILL.md` | Browser search, loading instruments/effects, device params |
-| `ableton-mcp-arrange` | `ableton-mcp-arrange/SKILL.md` | Scenes, song structure, Arrangement timeline, recording |
-| `ableton-mcp-mix` | `ableton-mcp-mix/SKILL.md` | Levels, panning, mute/solo, return tracks, sends, EQ |
-| `ableton-mcp-theory` | `ableton-mcp-theory/SKILL.md` | On demand — deep music theory reference |
+| `ableton-skill` | `ableton-skill/SKILL.md` | Every session — base skill always loaded first |
+| `ableton-skill-compose` | `ableton-skill-compose/SKILL.md` | Writing notes, generating music, clip editing |
+| `ableton-skill-sounds` | `ableton-skill-sounds/SKILL.md` | Browser search, loading instruments/effects, device params |
+| `ableton-skill-arrange` | `ableton-skill-arrange/SKILL.md` | Scenes, song structure, Arrangement timeline, recording |
+| `ableton-skill-mix` | `ableton-skill-mix/SKILL.md` | Levels, panning, mute/solo, return tracks, sends, EQ |
+| `ableton-skill-theory` | `ableton-skill-theory/SKILL.md` | On demand — deep music theory reference |
 
 Progressive disclosure: the base skill is always loaded (lightweight index). Stage skills
 enter context only when the task requires them. Theory is loaded only for deep theory questions.

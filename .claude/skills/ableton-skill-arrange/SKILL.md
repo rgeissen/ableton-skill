@@ -1,5 +1,5 @@
 ---
-name: ableton-mcp-arrange
+name: ableton-skill-arrange
 description: >
   Arrangement view tools for AbletonMCP. Use this skill for: switching to the Arrangement
   timeline, placing clips at specific bar/beat positions, navigating with cue points,
@@ -7,13 +7,13 @@ description: >
   song structures from Session clips. Trigger for any request about building a full song,
   intro/verse/chorus/outro structure, arrangement, timeline, scenes, recording, or
   "recording to arrangement".
-compatibility: "Requires ableton-mcp skill loaded. Part of the AbletonMCP skill suite."
+compatibility: "Requires ableton-skill skill loaded. Part of the AbletonMCP skill suite."
 ---
 
 # Arrange — Song Structure & Timeline
 
 This skill covers Session scene management and Arrangement view timeline workflow.
-Load it alongside the base `ableton-mcp` skill.
+Load it alongside the base `ableton-skill` skill.
 
 ---
 
@@ -77,7 +77,7 @@ Bar 17 = beat 64.0
 ## Typical Arrangement Workflow
 
 ```
-# 1. Build clips in Session View first (use ableton-mcp-compose)
+# 1. Build clips in Session View first (use ableton-skill-compose)
 get_all_tracks_info()   → confirm track indices
 
 # 2. Set up scenes for sections
@@ -88,7 +88,7 @@ set_scene_name(index=1, name="Verse")
 create_scene(index=-1)  → append "Chorus")
 set_scene_name(index=2, name="Chorus")
 
-# 3. Create and color clips per section (ableton-mcp-compose)
+# 3. Create and color clips per section (ableton-skill-compose)
 
 # 4. Switch to Arrangement, set playhead, record sections
 switch_to_arrangement_view()

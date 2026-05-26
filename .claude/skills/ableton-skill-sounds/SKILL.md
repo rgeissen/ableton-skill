@@ -1,12 +1,12 @@
 ---
-name: ableton-mcp-sounds
+name: ableton-skill-sounds
 description: >
   Sound design and instrument loading tools for AbletonMCP. Use this skill for: browsing
   Ableton's library, searching sounds by tag, loading instruments or effects onto tracks,
   loading drum kits, reading and tweaking device parameters (synths, samplers, effects,
   racks). Trigger for any request about finding a sound, loading a preset, tweaking a synth
   parameter, adjusting a filter, setting up an effect chain, or drilling into a device rack.
-compatibility: "Requires ableton-mcp skill loaded. Part of the AbletonMCP skill suite."
+compatibility: "Requires ableton-skill skill loaded. Part of the AbletonMCP skill suite."
 ---
 
 # Sounds — Browser, Instruments & Device Parameters
