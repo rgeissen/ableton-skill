@@ -35,10 +35,27 @@
       "Bash(find /opt/miniconda3 -name \"Song.py\" -o -name \"Song.pyi\" 2>/dev/null | head -5 *)",
       "Read(//opt/miniconda3/**)",
       "Bash(find \"/Applications/Ableton Live 12 Beta.app\" -name \"*.py\" 2>/dev/null | xargs grep -l \"create_group_track\\\\|create_midi_track\" 2>/dev/null | head -5 *)",
-      "Read(//Applications/Ableton Live 12 Beta.app/**)"
+      "Read(//Applications/Ableton Live 12 Beta.app/**)",
+      "Bash(gh pr *)",
+      "Bash(curl -s \"https://api.github.com/repos/ahujasid/ableton-mcp/pulls?state=open&per_page=50\")",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/94/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/91/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/84/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/82/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/67/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/55/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/50/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/41/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/26/files)",
+      "Bash(curl -s https://api.github.com/repos/ahujasid/ableton-mcp/pulls/17/files)",
+      "Bash(mkdir -p /Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills/ableton-mcp-arrange)",
+      "Edit(/.claude/skills/ableton-mcp-arrange/**)",
+      "Edit(/.claude/skills/ableton-mcp-compose/**)",
+      "Bash(awk '{print $2}')"
     ],
     "additionalDirectories": [
-      "/Users/livin2rave/.claude/skills/ableton-mcp"
+      "/Users/livin2rave/.claude/skills/ableton-mcp",
+      "/Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills"
     ]
   }
 }

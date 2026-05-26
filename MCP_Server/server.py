@@ -920,28 +920,6 @@ def create_audio_track(ctx: Context, index: int = -1) -> str:
 
 
 @mcp.tool()
-def create_group_track(ctx: Context, index: int = -1) -> str:
-    """
-    Create a new empty group track in the Ableton session (requires Live 11+).
-
-    A group track acts as a folder that contains other tracks. After creating a group,
-    new MIDI or audio tracks created at adjacent indices will appear as children of the group.
-    Note: existing tracks cannot be moved into a group via the API — use Cmd+G in Ableton
-    to group an existing selection of tracks.
-
-    Parameters:
-    - index: The index to insert the group track at (-1 = end of list).
-    """
-    try:
-        ableton = get_ableton_connection()
-        result = ableton.send_command("create_group_track", {"index": index})
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        logger.error(f"Error creating group track: {str(e)}")
-        return f"Error creating group track: {str(e)}"
-
-
-@mcp.tool()
 def set_track_mixer(ctx: Context, track_index: int, volume: float = None, panning: float = None) -> str:
     """
     Set the volume and/or panning of a track.
@@ -2093,6 +2071,484 @@ def humanize_notes(
         return json.dumps({"notes": humanized}, indent=2)
     except Exception as e:
         return f"Error humanizing notes: {e}"
+
+
+# =============================================================================
+# Transport extras
+# =============================================================================
+
+@mcp.tool()
+def redo(ctx: Context) -> str:
+    """Redo the last undone action."""
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("redo")
+        return "Redo applied"
+    except Exception as e:
+        logger.error(f"Error in redo: {str(e)}")
+        return f"Error in redo: {str(e)}"
+
+
+@mcp.tool()
+def tap_tempo(ctx: Context) -> str:
+    """Send a tap-tempo pulse. Call repeatedly in rhythm to set BPM by tapping."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("tap_tempo")
+        return f"Tap registered. Current tempo: {result.get('tempo', '?')} BPM"
+    except Exception as e:
+        logger.error(f"Error tapping tempo: {str(e)}")
+        return f"Error tapping tempo: {str(e)}"
+
+
+@mcp.tool()
+def capture_midi(ctx: Context) -> str:
+    """Trigger Live's MIDI Capture to recover recently played notes on the armed track."""
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("capture_midi")
+        return "MIDI captured"
+    except Exception as e:
+        logger.error(f"Error capturing MIDI: {str(e)}")
+        return f"Error capturing MIDI: {str(e)}"
+
+
+@mcp.tool()
+def set_time_signature(ctx: Context, numerator: int = None, denominator: int = None) -> str:
+    """
+    Change the session time signature.
+
+    Parameters:
+    - numerator: Beats per bar (e.g. 3, 4, 5, 6, 7)
+    - denominator: Beat unit (2, 4, 8, 16)
+    """
+    try:
+        ableton = get_ableton_connection()
+        params = {}
+        if numerator is not None:
+            params["numerator"] = numerator
+        if denominator is not None:
+            params["denominator"] = denominator
+        result = ableton.send_command("set_time_signature", params)
+        return f"Time signature: {result['numerator']}/{result['denominator']}"
+    except Exception as e:
+        logger.error(f"Error setting time signature: {str(e)}")
+        return f"Error setting time signature: {str(e)}"
+
+
+@mcp.tool()
+def set_metronome(ctx: Context, enabled: bool) -> str:
+    """
+    Enable or disable the metronome click.
+
+    Parameters:
+    - enabled: True to enable, False to disable
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_metronome", {"enabled": enabled})
+        state = "on" if result.get("metronome") else "off"
+        return f"Metronome {state}"
+    except Exception as e:
+        logger.error(f"Error setting metronome: {str(e)}")
+        return f"Error setting metronome: {str(e)}"
+
+
+@mcp.tool()
+def set_arrangement_record(ctx: Context, record: bool) -> str:
+    """
+    Arm or disarm arrangement recording.
+
+    Parameters:
+    - record: True to arm arrangement record, False to disarm
+    """
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("set_arrangement_record", {"record": record})
+        return f"Arrangement record {'armed' if record else 'disarmed'}"
+    except Exception as e:
+        logger.error(f"Error setting arrangement record: {str(e)}")
+        return f"Error setting arrangement record: {str(e)}"
+
+
+@mcp.tool()
+def get_current_song_time(ctx: Context) -> str:
+    """Get the current playhead position in beats."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_current_song_time")
+        return f"Current song time: {result['current_song_time']:.3f} beats"
+    except Exception as e:
+        logger.error(f"Error getting song time: {str(e)}")
+        return f"Error getting song time: {str(e)}"
+
+
+@mcp.tool()
+def set_current_song_time(ctx: Context, time: float) -> str:
+    """
+    Jump the playhead to a beat position in the Arrangement.
+
+    Parameters:
+    - time: Position in beats from the start (≥ 0). E.g. 8.0 = bar 3 in 4/4.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_current_song_time", {"time": time})
+        return f"Playhead moved to {result['current_song_time']:.3f} beats"
+    except Exception as e:
+        logger.error(f"Error setting song time: {str(e)}")
+        return f"Error setting song time: {str(e)}"
+
+
+# =============================================================================
+# Scenes
+# =============================================================================
+
+@mcp.tool()
+def get_scenes(ctx: Context) -> str:
+    """List all scenes in the session with name, color, and tempo."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_scenes")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting scenes: {str(e)}")
+        return f"Error getting scenes: {str(e)}"
+
+
+@mcp.tool()
+def create_scene(ctx: Context, index: int = -1) -> str:
+    """
+    Add a new empty scene.
+
+    Parameters:
+    - index: Position to insert the scene (-1 = append at end)
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("create_scene", {"index": index})
+        return f"Created scene at index {result['index']} (name: '{result['name']}')"
+    except Exception as e:
+        logger.error(f"Error creating scene: {str(e)}")
+        return f"Error creating scene: {str(e)}"
+
+
+@mcp.tool()
+def delete_scene(ctx: Context, index: int) -> str:
+    """
+    Delete a scene.
+
+    Parameters:
+    - index: The scene index to delete
+    """
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("delete_scene", {"index": index})
+        return f"Deleted scene {index}"
+    except Exception as e:
+        logger.error(f"Error deleting scene: {str(e)}")
+        return f"Error deleting scene: {str(e)}"
+
+
+@mcp.tool()
+def fire_scene(ctx: Context, index: int) -> str:
+    """
+    Launch all clips in a scene.
+
+    Parameters:
+    - index: The scene index to fire
+    """
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("fire_scene", {"index": index})
+        return f"Scene {index} fired"
+    except Exception as e:
+        logger.error(f"Error firing scene: {str(e)}")
+        return f"Error firing scene: {str(e)}"
+
+
+@mcp.tool()
+def set_scene_name(ctx: Context, index: int, name: str) -> str:
+    """
+    Rename a scene.
+
+    Parameters:
+    - index: Scene index
+    - name: New name for the scene
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_scene_name", {"index": index, "name": name})
+        return f"Scene {index} renamed to '{result['name']}'"
+    except Exception as e:
+        logger.error(f"Error setting scene name: {str(e)}")
+        return f"Error setting scene name: {str(e)}"
+
+
+@mcp.tool()
+def set_scene_color(ctx: Context, index: int, color: str) -> str:
+    """
+    Set the color of a scene.
+
+    Parameters:
+    - index: Scene index
+    - color: Hex color string e.g. '#FF2200'
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_scene_color", {"index": index, "color": color})
+        return f"Scene {index} color set to {result['color']}"
+    except Exception as e:
+        logger.error(f"Error setting scene color: {str(e)}")
+        return f"Error setting scene color: {str(e)}"
+
+
+@mcp.tool()
+def stop_all_clips(ctx: Context) -> str:
+    """Stop all currently playing clips in all tracks."""
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("stop_all_clips")
+        return "All clips stopped"
+    except Exception as e:
+        logger.error(f"Error stopping all clips: {str(e)}")
+        return f"Error stopping all clips: {str(e)}"
+
+
+# =============================================================================
+# Return tracks & sends
+# =============================================================================
+
+@mcp.tool()
+def get_return_tracks(ctx: Context) -> str:
+    """List all return tracks with name, color, volume, and panning."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_return_tracks")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting return tracks: {str(e)}")
+        return f"Error getting return tracks: {str(e)}"
+
+
+@mcp.tool()
+def create_return_track(ctx: Context) -> str:
+    """Add a new return track (appended at the end of the return track list)."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("create_return_track")
+        return f"Return track created at index {result['return_track_index']} (total: {result['return_track_count']})"
+    except Exception as e:
+        logger.error(f"Error creating return track: {str(e)}")
+        return f"Error creating return track: {str(e)}"
+
+
+@mcp.tool()
+def set_send_level(ctx: Context, track_index: int, return_track_index: int, value: float) -> str:
+    """
+    Set the send level from a track to a return track.
+
+    Parameters:
+    - track_index: Source track index
+    - return_track_index: Return track index (0 = A, 1 = B, …)
+    - value: Send level 0.0–1.0
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_send_level", {
+            "track_index": track_index,
+            "return_track_index": return_track_index,
+            "value": value,
+        })
+        return f"Track {track_index} send to return {return_track_index}: {result['value']:.3f}"
+    except Exception as e:
+        logger.error(f"Error setting send level: {str(e)}")
+        return f"Error setting send level: {str(e)}"
+
+
+# =============================================================================
+# Track extras
+# =============================================================================
+
+@mcp.tool()
+def set_track_arm(ctx: Context, track_index: int, arm: bool) -> str:
+    """
+    Arm or disarm a track for recording.
+
+    Parameters:
+    - track_index: Track index
+    - arm: True to arm, False to disarm
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_track_arm", {"track_index": track_index, "arm": arm})
+        return f"Track {track_index} {'armed' if result['arm'] else 'disarmed'}"
+    except Exception as e:
+        logger.error(f"Error setting track arm: {str(e)}")
+        return f"Error setting track arm: {str(e)}"
+
+
+@mcp.tool()
+def duplicate_track(ctx: Context, track_index: int) -> str:
+    """
+    Duplicate a track including all its devices and clips. The copy appears at track_index + 1.
+
+    Parameters:
+    - track_index: Source track index
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("duplicate_track", {"track_index": track_index})
+        return f"Track {track_index} duplicated → new track at {result['new_track_index']} (total: {result['track_count']})"
+    except Exception as e:
+        logger.error(f"Error duplicating track: {str(e)}")
+        return f"Error duplicating track: {str(e)}"
+
+
+# =============================================================================
+# Clip extras
+# =============================================================================
+
+@mcp.tool()
+def remove_notes_from_clip(
+    ctx: Context,
+    track_index: int,
+    clip_index: int,
+    from_pitch: int = 0,
+    pitch_span: int = 128,
+    from_time: float = 0.0,
+    time_span: float = None,
+) -> str:
+    """
+    Remove a range of notes from a MIDI clip.
+
+    Parameters:
+    - track_index: Track index
+    - clip_index: Clip slot index
+    - from_pitch: Lowest MIDI pitch to remove (0–127)
+    - pitch_span: Number of pitches covered (default 128 = all)
+    - from_time: Start time in beats
+    - time_span: Duration in beats to clear (None = entire clip)
+    """
+    try:
+        ableton = get_ableton_connection()
+        params: dict = {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "from_pitch": from_pitch,
+            "pitch_span": pitch_span,
+            "from_time": from_time,
+        }
+        if time_span is not None:
+            params["time_span"] = time_span
+        ableton.send_command("remove_notes_from_clip", params)
+        return f"Notes removed from clip {clip_index} on track {track_index}"
+    except Exception as e:
+        logger.error(f"Error removing notes: {str(e)}")
+        return f"Error removing notes: {str(e)}"
+
+
+@mcp.tool()
+def set_clip_loop(
+    ctx: Context,
+    track_index: int,
+    clip_index: int,
+    looping: bool = None,
+    loop_start: float = None,
+    loop_end: float = None,
+) -> str:
+    """
+    Set loop properties on a clip.
+
+    Parameters:
+    - track_index: Track index
+    - clip_index: Clip slot index
+    - looping: True to enable looping, False to disable (None = no change)
+    - loop_start: Loop start in beats (None = no change)
+    - loop_end: Loop end in beats (None = no change)
+    """
+    try:
+        ableton = get_ableton_connection()
+        params: dict = {"track_index": track_index, "clip_index": clip_index}
+        if looping is not None:
+            params["looping"] = looping
+        if loop_start is not None:
+            params["loop_start"] = loop_start
+        if loop_end is not None:
+            params["loop_end"] = loop_end
+        result = ableton.send_command("set_clip_loop", params)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting clip loop: {str(e)}")
+        return f"Error setting clip loop: {str(e)}"
+
+
+@mcp.tool()
+def set_clip_color(ctx: Context, track_index: int, clip_index: int, color: str) -> str:
+    """
+    Set the color of a clip.
+
+    Parameters:
+    - track_index: Track index
+    - clip_index: Clip slot index
+    - color: Hex color string e.g. '#FF2200'
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_clip_color", {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "color": color,
+        })
+        return f"Clip {clip_index} on track {track_index} color set to {result['color']}"
+    except Exception as e:
+        logger.error(f"Error setting clip color: {str(e)}")
+        return f"Error setting clip color: {str(e)}"
+
+
+# =============================================================================
+# Arrangement
+# =============================================================================
+
+@mcp.tool()
+def switch_to_arrangement_view(ctx: Context) -> str:
+    """Switch Ableton's main window to the Arrangement (timeline) view."""
+    try:
+        ableton = get_ableton_connection()
+        ableton.send_command("switch_to_arrangement_view")
+        return "Switched to Arrangement view"
+    except Exception as e:
+        logger.error(f"Error switching view: {str(e)}")
+        return f"Error switching view: {str(e)}"
+
+
+@mcp.tool()
+def get_arrangement_clips(ctx: Context, track_index: int) -> str:
+    """
+    List all clips placed in the Arrangement timeline for a track.
+
+    Parameters:
+    - track_index: Track index to inspect
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_arrangement_clips", {"track_index": track_index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting arrangement clips: {str(e)}")
+        return f"Error getting arrangement clips: {str(e)}"
+
+
+@mcp.tool()
+def get_cue_points(ctx: Context) -> str:
+    """List all cue points (markers) in the Arrangement with their names and beat positions."""
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_cue_points")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting cue points: {str(e)}")
+        return f"Error getting cue points: {str(e)}"
 
 
 # Main execution

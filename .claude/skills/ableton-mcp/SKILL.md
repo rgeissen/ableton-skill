@@ -42,9 +42,10 @@ Load the right skill for the task. Each skill is focused and only enters context
 
 | Stage | Skill | When to invoke |
 |---|---|---|
-| **Compose** | `ableton-mcp-compose` | Writing tracks, clips, MIDI notes, generating chords/bass/melody, arrangement |
+| **Compose** | `ableton-mcp-compose` | Writing tracks, clips, MIDI notes, generating chords/bass/melody |
 | **Sounds** | `ableton-mcp-sounds` | Browser search, loading instruments/effects, tweaking device parameters |
-| **Mix** | `ableton-mcp-mix` | Track levels, panning, mute/solo, EQ/compression, coloring tracks |
+| **Arrange** | `ableton-mcp-arrange` | Scene management, song structure, Arrangement timeline, recording |
+| **Mix** | `ableton-mcp-mix` | Track levels, panning, mute/solo, return tracks, sends, EQ/compression |
 | **Theory** | `ableton-mcp-theory` | Deep music theory — scales, chord types, progression recipes, genre patterns |
 
 For most tasks, load **one stage skill** alongside this base skill. Multi-stage tasks
@@ -63,9 +64,14 @@ For most tasks, load **one stage skill** alongside this base skill. Multi-stage 
 | `get_scale_mode` | Current root note + scale name | — |
 | `get_playback_position` | Beat position + is_playing | — |
 | `set_tempo` | Change BPM | `tempo` (float) |
+| `set_time_signature` | Change meter (4/4, 3/4, …) | `numerator`, `denominator` |
 | `start_playback` | Press Play | — |
 | `stop_playback` | Press Stop | — |
+| `stop_all_clips` | Stop all clips without stopping transport | — |
 | `undo` | Undo last action | — |
+| `redo` | Redo last undone action | — |
+| `tap_tempo` | Set BPM by tapping repeatedly | — |
+| `set_metronome` | Toggle click track | `enabled` |
 | `set_track_color` | Color-code a track (`#RRGGBB`) — use at any stage | `track_index`, `color` |
 
 ### Events (observe live state changes)

@@ -25,6 +25,23 @@ first — it returns volume, mute, solo, and color for every track in one call.
 | `set_track_solo` | Solo / unsolo | `track_index`, `solo` (bool) |
 | `set_track_color` | Color-code for session navigation | `track_index`, `color` (#RRGGBB) |
 
+### Return Tracks & Sends
+
+| Tool | Purpose | Key params |
+|---|---|---|
+| `get_return_tracks` | List return tracks (volume, pan, mute) | — |
+| `create_return_track` | Add a new return track | — |
+| `set_send_level` | Set send amount from track to return | `track_index`, `return_track_index`, `value` (0.0–1.0) |
+
+**Send level reference:** 0.0 = off, 0.5 = −6 dB, 1.0 = unity (maximum send).
+
+**Typical reverb/delay setup:**
+```
+create_return_track()                          → return A
+# Load reverb via ableton-mcp-sounds
+set_send_level(track_index=2, return_track_index=0, value=0.3)  → 30% of track 2 → reverb A
+```
+
 **Volume reference:**
 - 0.0 = silence, 0.85 = unity gain (0 dB), 1.0 = +6 dB
 - Typical mix starting point: kicks 0.85–0.9, bass 0.75–0.85, pads 0.5–0.65, leads 0.6–0.75

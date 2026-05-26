@@ -1,7 +1,7 @@
 # AbletonMCP - Ableton Live Model Context Protocol Integration
 [![smithery badge](https://smithery.ai/badge/@ahujasid/ableton-mcp)](https://smithery.ai/server/@ahujasid/ableton-mcp)
 
-AbletonMCP connects Ableton Live to Claude AI through the Model Context Protocol (MCP), allowing Claude to directly interact with and control Ableton Live. This integration enables prompt-assisted music production, track creation, and Live session manipulation.
+AbletonMCP connects Ableton Live to Claude AI through the Model Context Protocol (MCP), allowing Claude to directly interact with and control Ableton Live. This integration enables prompt-assisted music production — from writing the first beat to building a full arrangement.
 
 ### Join the Community
 
@@ -9,18 +9,43 @@ Give feedback, get inspired, and build on top of the MCP: [Discord](https://disc
 
 ## Features
 
-- **Two-way communication**: Connect Claude AI to Ableton Live through a socket-based server
+- **Two-way synchronization**: Claude both controls Ableton *and* listens to it — subscribe to live state changes (tempo, playback, track edits) so Claude always knows what's happening in your session without you having to describe it. This means Claude can react to what you do manually, pick up context automatically, and give suggestions that reflect the actual current state of the project.
+- **Music theory intelligence**: Generate chords, progressions, bass lines, and melodies from genre and scale context — no manual note entry required
 - **Track manipulation**: Create, modify, and manipulate MIDI and audio tracks
-- **Instrument and effect selection**: Claude can access and load the right instruments, effects and sounds from Ableton's library
-- **Clip creation**: Create and edit MIDI clips with notes
-- **Session control**: Start and stop playback, fire clips, and control transport
+- **Instrument and effect selection**: Search Ableton's library by tag or name and load sounds directly onto tracks
+- **Clip creation**: Write, edit, and humanize MIDI clips with full note control
+- **Scene and arrangement**: Manage session scenes, build song sections, and record into the Arrangement timeline
+- **Mixing**: Set levels, panning, mute/solo, sends, and adjust device parameters
 
-## Components
+## How It Works
 
-The system consists of two main components:
+Two components communicate over a local TCP socket:
 
-1. **Ableton Remote Script** (`Ableton_Remote_Script/__init__.py`): A MIDI Remote Script for Ableton Live that creates a socket server to receive and execute commands
-2. **MCP Server** (`server.py`): A Python server that implements the Model Context Protocol and connects to the Ableton Remote Script
+```
+Claude (via MCP client)
+      │
+      ▼
+MCP_Server/server.py          ← runs outside Ableton, exposes all tools
+      │  TCP :9877
+      ▼
+AbletonMCP_Remote_Script/     ← Ableton MIDI Remote Script, calls Live Python API
+__init__.py
+```
+
+### Skill Architecture — Progressive Disclosure
+
+When using Claude Code or the Claude desktop app, AbletonMCP loads specialized skills depending on what you're doing. This keeps context lean — only the relevant guidance enters the conversation.
+
+| Stage | Skill | Loaded when |
+|---|---|---|
+| Session control | `ableton-mcp` | Always — base orientation and transport |
+| Compose | `ableton-mcp-compose` | Writing beats, clips, chords, bass, melody |
+| Sounds | `ableton-mcp-sounds` | Browsing library, loading instruments/effects, tweaking device parameters |
+| Arrange | `ableton-mcp-arrange` | Scene management, song structure, Arrangement timeline |
+| Mix | `ableton-mcp-mix` | Levels, panning, sends, EQ, compression |
+| Theory | `ableton-mcp-theory` | Deep music theory — scales, chord recipes, genre patterns |
+
+For most tasks Claude loads one stage skill alongside the base. Multi-stage tasks (e.g. compose + mix) load two. The theory skill loads only when you ask a deep theory question.
 
 ## Installation
 
@@ -123,28 +148,63 @@ Once the config file has been set on Claude, and the remote script is running in
 
 ## Capabilities
 
-- Get session and track information
-- Create and modify MIDI and audio tracks
-- Create, edit, and trigger clips
-- Control playback
-- Load instruments and effects from Ableton's browser
-- Add notes to MIDI clips
-- Change tempo and other session parameters
+**Session & Transport**
+- Get session info, track list, scale mode, playback position
+- Set tempo, time signature, metronome; tap tempo; undo/redo
+- Start/stop playback, stop all clips
+
+**Compose**
+- Create MIDI and audio tracks; duplicate, color, arm, delete
+- Create clips, write and edit MIDI notes, set clip loop, color, name
+- Generate chords, progressions, bass lines, melodies with music theory built in
+- Humanize patterns for a natural feel
+
+**Sounds**
+- Search Ableton's library by tag (`search_by_tags`) — works without Live running
+- Load instruments, effects, drum kits directly from search results
+- Read and set any device parameter including nested racks and Drum Rack pads
+
+**Arrange**
+- Create, name, color, and fire scenes
+- Switch to the Arrangement timeline; move the playhead; list arrangement clips
+- Arm arrangement recording; capture recently played MIDI
+- Read cue point markers
+
+**Mix**
+- Set track volume, panning, mute, solo
+- Create return tracks; set send levels from any track to any return
+- Adjust EQ, compression, or any device parameter on regular, return, and master tracks
+
+**Events**
+- Subscribe to live state changes: tempo, playback, song time, track count
+- Poll for queued events with `get_pending_events`
 
 ## Example Commands
 
-Here are some examples of what you can ask Claude to do:
-
+**Beat building**
+- "Create a Metro Boomin style hip-hop beat" 
 - "Create an 80s synthwave track" [Demo](https://youtu.be/VH9g66e42XA)
-- "Create a Metro Boomin style hip-hop beat"
-- "Create a new MIDI track with a synth bass instrument"
-- "Add reverb to my drums"
-- "Create a 4-bar MIDI clip with a simple melody"
-- "Get information about the current Ableton session"
-- "Load a 808 drum rack into the selected track"
-- "Add a jazz chord progression to the clip in track 1"
-- "Set the tempo to 120 BPM"
-- "Play the clip in track 2"
+- "Load a 808 drum rack and write a trap pattern"
+
+**Composition**
+- "Add a deep house bass line in A minor"
+- "Generate a ii–V–I chord progression in G major and humanize it"
+- "Write an arching 2-bar melody over the chords"
+
+**Sound design**
+- "Find a warm pad sound and load it onto track 2"
+- "Turn up the filter cutoff on the synth on track 3"
+- "Add reverb and adjust the decay time"
+
+**Arrangement**
+- "Create scenes for Intro, Verse, Chorus, and Outro"
+- "Switch to Arrangement view and record each scene in sequence"
+- "Create a return track and add 30% reverb send from the lead"
+
+**Session management**
+- "Set the tempo to 128 BPM and switch to 4/4"
+- "Mute all tracks except the drums"
+- "Color-code all tracks by role"
 
 
 ## Troubleshooting
@@ -157,15 +217,21 @@ Here are some examples of what you can ask Claude to do:
 
 ### Communication Protocol
 
-The system uses a simple JSON-based protocol over TCP sockets:
+Commands are sent as JSON over TCP (`localhost:9877`):
 
-- Commands are sent as JSON objects with a `type` and optional `params`
-- Responses are JSON objects with a `status` and `result` or `message`
+```json
+{ "type": "create_midi_track", "params": { "index": -1 } }
+{ "status": "success", "result": { "name": "1-MIDI", "index": 0 } }
+```
 
-### Limitations & Security Considerations
+State-mutating commands are dispatched to Ableton's main thread via `schedule_message`. Read-only commands run directly on the socket thread.
 
-- Creating complex musical arrangements might need to be broken down into smaller steps
-- The tool is designed to work with Ableton's default devices and browser items
+### Notes & Limitations
+
+- **Save manually**: saving `.als` sets is not exposed by the Live API — use Cmd+S in Ableton
+- **Group tracks**: `create_group_track` does not exist in the Live Python API; use Cmd+G in Ableton to group tracks manually
+- **Arrangement clips**: `get_arrangement_clips` requires Live 11 or newer
+- **Tag search**: `search_by_tags` reads Ableton's local SQLite database directly — Live does not need to be running for this call
 - Always save your work before extensive experimentation
 
 ## Contributing

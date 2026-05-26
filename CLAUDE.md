@@ -183,12 +183,30 @@ Environment variables `ABLETON_HOST` and `ABLETON_PORT` override the TCP target
 
 ## Skills
 
-Two Claude Code skills live in `.claude/skills/`:
+Six Claude Code skills live in `.claude/skills/`, one per production stage:
 
 | Skill | File | Loaded when |
 |---|---|---|
-| `ableton-mcp` | `ableton-mcp/SKILL.md` | Every session that involves Ableton |
-| `ableton-mcp-theory` | `ableton-mcp-theory/SKILL.md` | On demand — detailed theory reference |
+| `ableton-mcp` | `ableton-mcp/SKILL.md` | Every session — base skill always loaded first |
+| `ableton-mcp-compose` | `ableton-mcp-compose/SKILL.md` | Writing notes, generating music, clip editing |
+| `ableton-mcp-sounds` | `ableton-mcp-sounds/SKILL.md` | Browser search, loading instruments/effects, device params |
+| `ableton-mcp-arrange` | `ableton-mcp-arrange/SKILL.md` | Scenes, song structure, Arrangement timeline, recording |
+| `ableton-mcp-mix` | `ableton-mcp-mix/SKILL.md` | Levels, panning, mute/solo, return tracks, sends, EQ |
+| `ableton-mcp-theory` | `ableton-mcp-theory/SKILL.md` | On demand — deep music theory reference |
 
-The main skill references the theory skill in one line; the theory content only enters
-context when explicitly needed. This keeps the default context footprint small.
+Progressive disclosure: the base skill is always loaded (lightweight index). Stage skills
+enter context only when the task requires them. Theory is loaded only for deep theory questions.
+This keeps the default context footprint small.
+
+## Live API Verified Methods (from Song.pyc strings)
+
+Methods confirmed to exist in Live 12:
+- `create_audio_track`, `create_midi_track`, `create_return_track`, `create_scene`
+- `delete_scene`, `duplicate_track`, `stop_all_clips`
+- `tap_tempo`, `capture_midi`, `redo`, `undo`
+- `group_tracks` (read-only list), `ungroup_track`
+- `cue_points`, `arrangement_record_arm`, `metronome`, `signature_numerator`, `signature_denominator`
+- `current_song_time` (readable and writable)
+- `song.add_<type>_listener` / `song.remove_<type>_listener`
+
+**Does NOT exist:** `create_group_track` — group tracks must be created manually with Cmd+G.

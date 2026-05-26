@@ -248,7 +248,22 @@ class AbletonMCP(ControlSurface):
                                  "create_audio_track", "set_track_mixer", "set_track_mute",
                                  "set_track_solo", "duplicate_clip", "delete_clip",
                                  "delete_track", "set_device_param", "undo",
-                                 "set_scale_mode", "set_track_color"]:
+                                 "set_scale_mode", "set_track_color",
+                                 # Transport extras
+                                 "redo", "tap_tempo", "capture_midi",
+                                 "set_time_signature", "set_metronome",
+                                 "set_arrangement_record", "set_current_song_time",
+                                 # Scenes
+                                 "create_scene", "delete_scene", "fire_scene",
+                                 "set_scene_name", "set_scene_color", "stop_all_clips",
+                                 # Return tracks & sends
+                                 "create_return_track", "set_send_level",
+                                 # Track extras
+                                 "set_track_arm", "duplicate_track",
+                                 # Clip extras
+                                 "remove_notes_from_clip", "set_clip_loop", "set_clip_color",
+                                 # Arrangement
+                                 "switch_to_arrangement_view"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -354,6 +369,86 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             color = params.get("color")
                             result = self._set_track_color(track_index, color)
+                        # Transport extras
+                        elif command_type == "redo":
+                            result = self._redo()
+                        elif command_type == "tap_tempo":
+                            result = self._tap_tempo()
+                        elif command_type == "capture_midi":
+                            result = self._capture_midi()
+                        elif command_type == "set_time_signature":
+                            numerator = params.get("numerator", None)
+                            denominator = params.get("denominator", None)
+                            result = self._set_time_signature(numerator, denominator)
+                        elif command_type == "set_metronome":
+                            enabled = params.get("enabled", True)
+                            result = self._set_metronome(enabled)
+                        elif command_type == "set_arrangement_record":
+                            record = params.get("record", False)
+                            result = self._set_arrangement_record(record)
+                        elif command_type == "set_current_song_time":
+                            time_val = params.get("time", 0.0)
+                            result = self._set_current_song_time(time_val)
+                        # Scenes
+                        elif command_type == "create_scene":
+                            index = params.get("index", -1)
+                            result = self._create_scene(index)
+                        elif command_type == "delete_scene":
+                            index = params.get("index", 0)
+                            result = self._delete_scene(index)
+                        elif command_type == "fire_scene":
+                            index = params.get("index", 0)
+                            result = self._fire_scene(index)
+                        elif command_type == "set_scene_name":
+                            index = params.get("index", 0)
+                            name = params.get("name", "")
+                            result = self._set_scene_name(index, name)
+                        elif command_type == "set_scene_color":
+                            index = params.get("index", 0)
+                            color = params.get("color", "")
+                            result = self._set_scene_color(index, color)
+                        elif command_type == "stop_all_clips":
+                            result = self._stop_all_clips()
+                        # Return tracks & sends
+                        elif command_type == "create_return_track":
+                            result = self._create_return_track()
+                        elif command_type == "set_send_level":
+                            track_index = params.get("track_index", 0)
+                            return_track_index = params.get("return_track_index", 0)
+                            value = params.get("value", 0.0)
+                            result = self._set_send_level(track_index, return_track_index, value)
+                        # Track extras
+                        elif command_type == "set_track_arm":
+                            track_index = params.get("track_index", 0)
+                            arm = params.get("arm", False)
+                            result = self._set_track_arm(track_index, arm)
+                        elif command_type == "duplicate_track":
+                            track_index = params.get("track_index", 0)
+                            result = self._duplicate_track(track_index)
+                        # Clip extras
+                        elif command_type == "remove_notes_from_clip":
+                            track_index = params.get("track_index", 0)
+                            clip_index = params.get("clip_index", 0)
+                            from_pitch = params.get("from_pitch", 0)
+                            pitch_span = params.get("pitch_span", 128)
+                            from_time = params.get("from_time", 0.0)
+                            time_span = params.get("time_span", None)
+                            result = self._remove_notes_from_clip(track_index, clip_index, from_pitch, pitch_span, from_time, time_span)
+                        elif command_type == "set_clip_loop":
+                            track_index = params.get("track_index", 0)
+                            clip_index = params.get("clip_index", 0)
+                            looping = params.get("looping", None)
+                            loop_start = params.get("loop_start", None)
+                            loop_end = params.get("loop_end", None)
+                            result = self._set_clip_loop(track_index, clip_index, looping, loop_start, loop_end)
+                        elif command_type == "set_clip_color":
+                            track_index = params.get("track_index", 0)
+                            clip_index = params.get("clip_index", 0)
+                            color = params.get("color", "")
+                            result = self._set_clip_color(track_index, clip_index, color)
+                        # Arrangement
+                        elif command_type == "switch_to_arrangement_view":
+                            result = self._switch_to_arrangement_view()
 
                         # Put the result in the queue
                         response_queue.put({"status": "success", "result": result})
@@ -427,6 +522,18 @@ class AbletonMCP(ControlSurface):
             elif command_type == "unsubscribe_from_events":
                 event_types = params.get("event_types", None)
                 response["result"] = self._unsubscribe_from_events(event_types)
+            # Read-only extras
+            elif command_type == "get_scenes":
+                response["result"] = self._get_scenes()
+            elif command_type == "get_return_tracks":
+                response["result"] = self._get_return_tracks()
+            elif command_type == "get_arrangement_clips":
+                track_index = params.get("track_index", 0)
+                response["result"] = self._get_arrangement_clips(track_index)
+            elif command_type == "get_cue_points":
+                response["result"] = self._get_cue_points()
+            elif command_type == "get_current_song_time":
+                response["result"] = self._get_current_song_time()
             else:
                 response["status"] = "error"
                 response["message"] = "Unknown command: " + command_type
@@ -1595,6 +1702,343 @@ class AbletonMCP(ControlSurface):
         except Exception as e:
             self.log_message("Error getting browser items at path: {0}".format(str(e)))
             self.log_message(traceback.format_exc())
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Transport extras
+    # ---------------------------------------------------------------------------
+
+    def _redo(self):
+        try:
+            self._song.redo()
+            return {"redone": True}
+        except Exception as e:
+            self.log_message("Error in redo: " + str(e))
+            raise
+
+    def _tap_tempo(self):
+        try:
+            self._song.tap_tempo()
+            return {"tapped": True, "tempo": self._song.tempo}
+        except Exception as e:
+            self.log_message("Error in tap_tempo: " + str(e))
+            raise
+
+    def _capture_midi(self):
+        try:
+            self._song.capture_midi()
+            return {"captured": True}
+        except Exception as e:
+            self.log_message("Error in capture_midi: " + str(e))
+            raise
+
+    def _set_time_signature(self, numerator, denominator):
+        try:
+            if numerator is not None:
+                self._song.signature_numerator = int(numerator)
+            if denominator is not None:
+                self._song.signature_denominator = int(denominator)
+            return {
+                "numerator": self._song.signature_numerator,
+                "denominator": self._song.signature_denominator,
+            }
+        except Exception as e:
+            self.log_message("Error setting time signature: " + str(e))
+            raise
+
+    def _set_metronome(self, enabled):
+        try:
+            self._song.metronome = bool(enabled)
+            return {"metronome": self._song.metronome}
+        except Exception as e:
+            self.log_message("Error setting metronome: " + str(e))
+            raise
+
+    def _set_arrangement_record(self, record):
+        try:
+            self._song.arrangement_record_arm = bool(record)
+            return {"arrangement_record_arm": self._song.arrangement_record_arm}
+        except Exception as e:
+            self.log_message("Error setting arrangement record: " + str(e))
+            raise
+
+    def _set_current_song_time(self, time_val):
+        try:
+            self._song.current_song_time = float(time_val)
+            return {"current_song_time": self._song.current_song_time}
+        except Exception as e:
+            self.log_message("Error setting song time: " + str(e))
+            raise
+
+    def _get_current_song_time(self):
+        try:
+            return {"current_song_time": self._song.current_song_time}
+        except Exception as e:
+            self.log_message("Error getting song time: " + str(e))
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Scenes
+    # ---------------------------------------------------------------------------
+
+    def _get_scenes(self):
+        try:
+            scenes = []
+            for i, scene in enumerate(self._song.scenes):
+                scenes.append({
+                    "index": i,
+                    "name": scene.name,
+                    "color": "#{:06X}".format(scene.color) if hasattr(scene, "color") else None,
+                    "tempo": scene.tempo if hasattr(scene, "tempo") and scene.tempo > 0 else None,
+                    "is_triggered": scene.is_triggered if hasattr(scene, "is_triggered") else False,
+                })
+            return {"scenes": scenes, "count": len(scenes)}
+        except Exception as e:
+            self.log_message("Error getting scenes: " + str(e))
+            raise
+
+    def _create_scene(self, index):
+        try:
+            if index == -1:
+                index = len(self._song.scenes)
+            self._song.create_scene(index)
+            scene = self._song.scenes[index]
+            return {"index": index, "name": scene.name}
+        except Exception as e:
+            self.log_message("Error creating scene: " + str(e))
+            raise
+
+    def _delete_scene(self, index):
+        try:
+            if index < 0 or index >= len(self._song.scenes):
+                raise IndexError("Scene index out of range")
+            self._song.delete_scene(index)
+            return {"deleted": True, "index": index}
+        except Exception as e:
+            self.log_message("Error deleting scene: " + str(e))
+            raise
+
+    def _fire_scene(self, index):
+        try:
+            if index < 0 or index >= len(self._song.scenes):
+                raise IndexError("Scene index out of range")
+            self._song.scenes[index].fire()
+            return {"fired": True, "index": index}
+        except Exception as e:
+            self.log_message("Error firing scene: " + str(e))
+            raise
+
+    def _set_scene_name(self, index, name):
+        try:
+            if index < 0 or index >= len(self._song.scenes):
+                raise IndexError("Scene index out of range")
+            self._song.scenes[index].name = name
+            return {"index": index, "name": self._song.scenes[index].name}
+        except Exception as e:
+            self.log_message("Error setting scene name: " + str(e))
+            raise
+
+    def _set_scene_color(self, index, color):
+        try:
+            if index < 0 or index >= len(self._song.scenes):
+                raise IndexError("Scene index out of range")
+            scene = self._song.scenes[index]
+            if isinstance(color, str):
+                scene.color = int(color.lstrip("#"), 16)
+            else:
+                scene.color = int(color)
+            return {"index": index, "color": "#{:06X}".format(scene.color)}
+        except Exception as e:
+            self.log_message("Error setting scene color: " + str(e))
+            raise
+
+    def _stop_all_clips(self):
+        try:
+            self._song.stop_all_clips()
+            return {"stopped": True}
+        except Exception as e:
+            self.log_message("Error stopping all clips: " + str(e))
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Return tracks & sends
+    # ---------------------------------------------------------------------------
+
+    def _create_return_track(self):
+        try:
+            self._song.create_return_track()
+            n = len(self._song.return_tracks)
+            return {
+                "created": True,
+                "return_track_index": n - 1,
+                "return_track_count": n,
+            }
+        except Exception as e:
+            self.log_message("Error creating return track: " + str(e))
+            raise
+
+    def _get_return_tracks(self):
+        try:
+            tracks = []
+            for i, rt in enumerate(self._song.return_tracks):
+                mixer = rt.mixer_device
+                tracks.append({
+                    "index": i,
+                    "name": rt.name,
+                    "color": "#{:06X}".format(rt.color) if hasattr(rt, "color") else None,
+                    "volume": mixer.volume.value if hasattr(mixer, "volume") else None,
+                    "panning": mixer.panning.value if hasattr(mixer, "panning") else None,
+                    "mute": rt.mute if hasattr(rt, "mute") else False,
+                })
+            return {"return_tracks": tracks, "count": len(tracks)}
+        except Exception as e:
+            self.log_message("Error getting return tracks: " + str(e))
+            raise
+
+    def _set_send_level(self, track_index, return_track_index, value):
+        try:
+            tracks = list(self._song.tracks)
+            if track_index < 0 or track_index >= len(tracks):
+                raise IndexError("Track index out of range")
+            track = tracks[track_index]
+            sends = track.mixer_device.sends
+            if return_track_index < 0 or return_track_index >= len(sends):
+                raise IndexError("Return track index out of range for sends")
+            sends[return_track_index].value = float(value)
+            return {
+                "track_index": track_index,
+                "return_track_index": return_track_index,
+                "value": sends[return_track_index].value,
+            }
+        except Exception as e:
+            self.log_message("Error setting send level: " + str(e))
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Track extras
+    # ---------------------------------------------------------------------------
+
+    def _set_track_arm(self, track_index, arm):
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            track.arm = bool(arm)
+            return {"track_index": track_index, "arm": track.arm}
+        except Exception as e:
+            self.log_message("Error setting track arm: " + str(e))
+            raise
+
+    def _duplicate_track(self, track_index):
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            self._song.duplicate_track(track_index)
+            return {
+                "duplicated": True,
+                "source_track_index": track_index,
+                "new_track_index": track_index + 1,
+                "track_count": len(self._song.tracks),
+            }
+        except Exception as e:
+            self.log_message("Error duplicating track: " + str(e))
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Clip extras
+    # ---------------------------------------------------------------------------
+
+    def _remove_notes_from_clip(self, track_index, clip_index, from_pitch, pitch_span, from_time, time_span):
+        try:
+            track = self._song.tracks[track_index]
+            clip_slot = track.clip_slots[clip_index]
+            if not clip_slot.has_clip:
+                raise ValueError("No clip in slot {0}".format(clip_index))
+            clip = clip_slot.clip
+            if time_span is None:
+                time_span = clip.length
+            clip.remove_notes_extended(from_pitch, pitch_span, from_time, time_span)
+            return {"removed": True, "track_index": track_index, "clip_index": clip_index}
+        except Exception as e:
+            self.log_message("Error removing notes from clip: " + str(e))
+            raise
+
+    def _set_clip_loop(self, track_index, clip_index, looping, loop_start, loop_end):
+        try:
+            track = self._song.tracks[track_index]
+            clip = track.clip_slots[clip_index].clip
+            if looping is not None:
+                clip.looping = bool(looping)
+            if loop_start is not None:
+                clip.loop_start = float(loop_start)
+            if loop_end is not None:
+                clip.loop_end = float(loop_end)
+            return {
+                "looping": clip.looping,
+                "loop_start": clip.loop_start,
+                "loop_end": clip.loop_end,
+            }
+        except Exception as e:
+            self.log_message("Error setting clip loop: " + str(e))
+            raise
+
+    def _set_clip_color(self, track_index, clip_index, color):
+        try:
+            track = self._song.tracks[track_index]
+            clip = track.clip_slots[clip_index].clip
+            if isinstance(color, str):
+                clip.color = int(color.lstrip("#"), 16)
+            else:
+                clip.color = int(color)
+            return {"color": "#{:06X}".format(clip.color)}
+        except Exception as e:
+            self.log_message("Error setting clip color: " + str(e))
+            raise
+
+    # ---------------------------------------------------------------------------
+    # Arrangement
+    # ---------------------------------------------------------------------------
+
+    def _switch_to_arrangement_view(self):
+        try:
+            self.application().view.show_view("Arranger")
+            return {"view": "Arranger"}
+        except Exception as e:
+            self.log_message("Error switching to arrangement view: " + str(e))
+            raise
+
+    def _get_arrangement_clips(self, track_index):
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            clips = []
+            for clip in track.arrangement_clips:
+                clips.append({
+                    "name": clip.name,
+                    "start_time": clip.start_time,
+                    "end_time": clip.end_time,
+                    "length": clip.length,
+                    "color": "#{:06X}".format(clip.color) if hasattr(clip, "color") else None,
+                    "is_midi_clip": clip.is_midi_clip,
+                    "is_audio_clip": clip.is_audio_clip,
+                })
+            return {"track_index": track_index, "clips": clips, "count": len(clips)}
+        except Exception as e:
+            self.log_message("Error getting arrangement clips: " + str(e))
+            raise
+
+    def _get_cue_points(self):
+        try:
+            cues = []
+            for cp in self._song.cue_points:
+                cues.append({
+                    "name": cp.name,
+                    "time": cp.time,
+                })
+            return {"cue_points": cues, "count": len(cues)}
+        except Exception as e:
+            self.log_message("Error getting cue points: " + str(e))
             raise
 
     # ---------------------------------------------------------------------------

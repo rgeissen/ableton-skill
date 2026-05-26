@@ -27,6 +27,8 @@ This skill covers the **Basic Beat** and **Arrangement** stages. Orient yourself
 | `create_audio_track` | New audio track | `index` (-1 = end) |
 | `set_track_name` | Rename a track | `track_index`, `name` |
 | `set_track_color` | Color-code a track | `track_index`, `color` (#RRGGBB) |
+| `duplicate_track` | Clone track with devices + clips | `track_index` |
+| `set_track_arm` | Arm/disarm for recording | `track_index`, `arm` |
 | `delete_track` | Remove a track | `track_index` |
 
 **Color conventions** — consistent coloring makes sessions navigable at a glance:
@@ -51,7 +53,10 @@ This skill covers the **Basic Beat** and **Arrangement** stages. Orient yourself
 | `create_clip` | Empty MIDI clip in a slot | `track_index`, `clip_index`, `length` (beats) |
 | `add_notes_to_clip` | Write notes (replaces all) | `track_index`, `clip_index`, `notes[]` |
 | `get_clip_notes` | Read existing notes | `track_index`, `clip_index` |
+| `remove_notes_from_clip` | Delete notes by pitch/time range | `track_index`, `clip_index`, `from_pitch?`, `pitch_span?`, `from_time?`, `time_span?` |
 | `set_clip_name` | Name a clip | `track_index`, `clip_index`, `name` |
+| `set_clip_color` | Color-code a clip | `track_index`, `clip_index`, `color` (#RRGGBB) |
+| `set_clip_loop` | Set loop region | `track_index`, `clip_index`, `looping?`, `loop_start?`, `loop_end?` |
 | `duplicate_clip` | Copy to another slot | `track_index`, `clip_index`, `target_clip_index`, `target_track_index?` |
 | `delete_clip` | Remove a clip | `track_index`, `clip_index` |
 | `fire_clip` | Launch a clip | `track_index`, `clip_index` |
