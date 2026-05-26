@@ -58,12 +58,19 @@
       "Bash(mv ableton-mcp-sounds *)",
       "Bash(mv ableton-mcp-arrange *)",
       "Bash(mv ableton-mcp-mix *)",
-      "Bash(mv /Users/rainergeissendoerfer/my_private_code/ableton-mcp /Users/rainergeissendoerfer/my_private_code/ableton-skill && echo \"Done\" && ls /Users/rainergeissendoerfer/my_private_code/ | grep ableton)"
+      "Bash(mv /Users/rainergeissendoerfer/my_private_code/ableton-mcp /Users/rainergeissendoerfer/my_private_code/ableton-skill && echo \"Done\" && ls /Users/rainergeissendoerfer/my_private_code/ | grep ableton)",
+      "Bash(uvx --version)",
+      "Bash(which uv; ls ~/.local/bin/uv* 2>/dev/null; ls /opt/homebrew/bin/uv* 2>/dev/null; find /opt/miniconda3 -name \"uvx\" 2>/dev/null | head -5)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(conda create *)",
+      "Bash(/opt/miniconda3/envs/ableton-skill/bin/pip install *)",
+      "Bash(conda remove *)"
     ],
     "additionalDirectories": [
       "/Users/livin2rave/.claude/skills/ableton-mcp",
       "/Users/rainergeissendoerfer/my_private_code/ableton-mcp/.claude/skills",
-      "/Users/rainergeissendoerfer/my_private_code"
+      "/Users/rainergeissendoerfer/my_private_code",
+      "/Users/rainergeissendoerfer/Library/Application Support/Claude"
     ]
   }
 }

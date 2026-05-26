@@ -854,6 +854,33 @@ def load_sound_by_path(ctx: Context, track_index: int, browser_path: str) -> str
 
 
 @mcp.tool()
+def browse_user_library(ctx: Context, folder: str = "", max_items: int = 200) -> str:
+    """
+    Browse the User Library directly via the Live browser API and return loadable items
+    with their browser_path. Use this instead of search_by_tags when looking for
+    user-created or user-saved presets that may not appear in the SQLite tag database.
+
+    Parameters:
+    - folder:     Optional subfolder path to restrict the search, relative to User Library
+                  (e.g. "Presets/Instruments/Operator"). Leave empty to browse everything.
+    - max_items:  Maximum number of loadable items to return (default 200).
+
+    Returns a list of items, each with name and browser_path.
+    Pass browser_path directly to load_sound_by_path to load the item onto a track.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("browse_user_library", {
+            "folder": folder or None,
+            "max_items": max_items,
+        })
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error browsing user library: {str(e)}")
+        return f"Error browsing user library: {str(e)}"
+
+
+@mcp.tool()
 def load_drum_kit(ctx: Context, track_index: int, rack_uri: str, kit_path: str) -> str:
     """
     Load a drum rack and then load a specific drum kit into it.

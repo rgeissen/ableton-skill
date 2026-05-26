@@ -534,6 +534,10 @@ class AbletonMCP(ControlSurface):
                 response["result"] = self._get_cue_points()
             elif command_type == "get_current_song_time":
                 response["result"] = self._get_current_song_time()
+            elif command_type == "browse_user_library":
+                folder = params.get("folder", None)
+                max_items = params.get("max_items", 200)
+                response["result"] = self._browse_user_library(folder, max_items)
             else:
                 response["status"] = "error"
                 response["message"] = "Unknown command: " + command_type
@@ -1048,6 +1052,54 @@ class AbletonMCP(ControlSurface):
         except Exception as e:
             self.log_message("Error loading browser item by path: {0}".format(str(e)))
             raise
+
+    def _browse_user_library(self, folder=None, max_items=200):
+        """Traverse app.browser.user_library and return loadable items with their browser_path."""
+        app = self.application()
+        if not app:
+            raise RuntimeError("Could not access Live application")
+
+        start_item = app.browser.user_library
+        base_path = "user_library"
+
+        if folder:
+            parts = [p for p in folder.split("/") if p]
+            for part in parts:
+                found = None
+                for child in start_item.children:
+                    if hasattr(child, 'name') and child.name.lower() == part.lower():
+                        found = child
+                        break
+                if found is None:
+                    raise ValueError("Folder '{0}' not found in user library".format(part))
+                start_item = found
+                base_path = base_path + "/" + found.name
+
+        results = []
+
+        def traverse(item, path):
+            if len(results) >= max_items:
+                return
+            if not hasattr(item, 'children'):
+                return
+            for child in item.children:
+                if len(results) >= max_items:
+                    return
+                child_path = path + "/" + child.name
+                if hasattr(child, 'is_loadable') and child.is_loadable:
+                    results.append({"name": child.name, "browser_path": child_path})
+                if hasattr(child, 'children') and child.children:
+                    traverse(child, child_path)
+
+        traverse(start_item, base_path)
+
+        return {
+            "folder": folder or "",
+            "count": len(results),
+            "truncated": len(results) >= max_items,
+            "hint": "Pass browser_path directly to load_sound_by_path to load onto a track",
+            "items": results,
+        }
 
     def _find_browser_item_by_uri(self, browser_or_item, uri, max_depth=10, current_depth=0):
         """Find a browser item by its URI"""
