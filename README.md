@@ -1,11 +1,11 @@
-# AbletonMCP - Ableton Live Model Context Protocol Integration
+# Ableton Skill — Ableton Live Integration for Claude
 [![smithery badge](https://smithery.ai/badge/@ahujasid/ableton-skill)](https://smithery.ai/server/@ahujasid/ableton-skill)
 
-AbletonMCP connects Ableton Live to Claude AI through the Model Context Protocol (MCP), allowing Claude to directly interact with and control Ableton Live. This integration enables prompt-assisted music production — from writing the first beat to building a full arrangement.
+Ableton Skill connects Ableton Live to Claude AI, allowing Claude to directly interact with and control Ableton Live. This integration enables prompt-assisted music production — from writing the first beat to building a full arrangement.
 
 ### Join the Community
 
-Give feedback, get inspired, and build on top of the MCP: [Discord](https://discord.gg/3ZrMyGKnaU). Made by [Siddharth](https://x.com/sidahuj)
+Give feedback, get inspired, and build on top of Ableton Skill: [Discord](https://discord.gg/3ZrMyGKnaU). Made by [Siddharth](https://x.com/sidahuj)
 
 ## Features
 
@@ -34,7 +34,7 @@ __init__.py
 
 ### Skill Architecture — Progressive Disclosure
 
-When using Claude Code or the Claude desktop app, AbletonMCP loads specialized skills depending on what you're doing. This keeps context lean — only the relevant guidance enters the conversation.
+When using Claude Code or the Claude desktop app, Ableton Skill loads specialized skills depending on what you're doing. This keeps context lean — only the relevant guidance enters the conversation.
 
 | Stage | Skill | Loaded when |
 |---|---|---|
@@ -81,7 +81,7 @@ Otherwise, install from [uv's official website][https://docs.astral.sh/uv/gettin
 ```json
 {
     "mcpServers": {
-        "AbletonMCP": {
+        "ableton-skill": {
             "command": "uvx",
             "args": [
                 "ableton-skill"
@@ -144,7 +144,7 @@ uvx ableton-skill
 
 ### Using with Claude
 
-Once the config file has been set on Claude, and the remote script is running in Ableton, you will see a hammer icon with tools for the Ableton MCP.
+Once the config file has been set on Claude, and the remote script is running in Ableton, you will see a hammer icon with tools for Ableton Skill.
 
 ## Capabilities
 
