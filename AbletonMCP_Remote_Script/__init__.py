@@ -269,7 +269,8 @@ class AbletonMCP(ControlSurface):
                                  # Arrangement
                                  "switch_to_arrangement_view",
                                  # Audio capture / export
-                                 "set_track_input_routing", "set_track_monitor"]:
+                                 "set_track_input_routing", "set_track_monitor",
+                                 "fire_clip_slot"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -439,6 +440,10 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             state = params.get("state", 2)
                             result = self._set_track_monitor(track_index, state)
+                        elif command_type == "fire_clip_slot":
+                            track_index = params.get("track_index", 0)
+                            clip_index = params.get("clip_index", 0)
+                            result = self._fire_clip_slot(track_index, clip_index)
                         # Clip extras
                         elif command_type == "remove_notes_from_clip":
                             track_index = params.get("track_index", 0)
@@ -2059,6 +2064,25 @@ class AbletonMCP(ControlSurface):
             return {"has_clip": False, "file_path": None}
         except Exception as e:
             self.log_message("Error getting clip file path: " + str(e))
+            raise
+
+    def _fire_clip_slot(self, track_index, clip_index):
+        """Fire a clip SLOT directly (works on empty slots, unlike fire_clip).
+        On an ARMED track an empty slot starts recording — this is how a
+        resampling capture is triggered."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            if clip_index < 0 or clip_index >= len(track.clip_slots):
+                raise IndexError("Clip slot index out of range")
+            slot = track.clip_slots[clip_index]
+            slot.fire()
+            return {"track_index": track_index, "clip_index": clip_index,
+                    "has_clip": slot.has_clip,
+                    "is_recording": bool(getattr(slot, "is_recording", False))}
+        except Exception as e:
+            self.log_message("Error firing clip slot: " + str(e))
             raise
 
     def _duplicate_track(self, track_index):

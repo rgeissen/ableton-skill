@@ -213,7 +213,7 @@ class AbletonConnection:
             "set_track_mixer", "set_track_mute", "set_track_solo",
             "duplicate_clip", "delete_clip", "delete_track",
             "set_device_param", "undo", "save_set", "set_scale_mode",
-            "set_track_input_routing", "set_track_monitor"
+            "set_track_input_routing", "set_track_monitor", "fire_clip_slot"
         ]
         
         try:
@@ -2620,6 +2620,22 @@ def set_track_monitor(ctx: Context, track_index: int, state: int = 2) -> str:
 
 
 @mcp.tool()
+def fire_clip_slot(ctx: Context, track_index: int, clip_index: int = 0) -> str:
+    """
+    Fire a clip SLOT directly (unlike fire_clip, this works on EMPTY slots).
+    On an armed track, firing an empty slot starts recording into it — used to trigger a resampling capture.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("fire_clip_slot", {
+            "track_index": track_index, "clip_index": clip_index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error firing clip slot: {str(e)}")
+        return f"Error firing clip slot: {str(e)}"
+
+
+@mcp.tool()
 def get_clip_file_path(ctx: Context, track_index: int, clip_index: int = 0) -> str:
     """
     Return the sample file path of a recorded audio clip on a track
@@ -2674,14 +2690,16 @@ def export_audio(ctx: Context, bars: int = 16, scene_index: int = 0) -> str:
         ableton.send_command("set_track_monitor", {"track_index": cap_idx, "state": 2})
         ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": True})
 
-        # Launch the content scene, then start recording into the armed capture slot.
+        # Launch the content scene, then start recording into the armed (empty) capture slot.
+        # fire_clip_slot fires the slot directly — an empty slot on an armed track records.
         ableton.send_command("fire_scene", {"index": scene_index})
-        ableton.send_command("fire_clip", {"track_index": cap_idx, "clip_index": scene_index})
+        ableton.send_command("fire_clip_slot", {"track_index": cap_idx, "clip_index": scene_index})
 
         time.sleep(seconds + 0.4)
 
         ableton.send_command("stop_all_clips")
         ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": False})
+        time.sleep(0.5)  # let Live finalize / flush the recorded sample to disk
 
         fp = ableton.send_command("get_clip_file_path", {
             "track_index": cap_idx, "clip_index": scene_index})
