@@ -212,7 +212,8 @@ class AbletonConnection:
             "start_playback", "stop_playback", "load_instrument_or_effect",
             "set_track_mixer", "set_track_mute", "set_track_solo",
             "duplicate_clip", "delete_clip", "delete_track",
-            "set_device_param", "undo", "save_set", "set_scale_mode"
+            "set_device_param", "undo", "save_set", "set_scale_mode",
+            "set_track_input_routing", "set_track_monitor"
         ]
         
         try:
@@ -2576,6 +2577,123 @@ def get_cue_points(ctx: Context) -> str:
     except Exception as e:
         logger.error(f"Error getting cue points: {str(e)}")
         return f"Error getting cue points: {str(e)}"
+
+
+# =============================================================================
+# Audio capture / export (real-time resampling)
+# =============================================================================
+
+@mcp.tool()
+def set_track_input_routing(ctx: Context, track_index: int, routing_name: str = "Resampling") -> str:
+    """
+    Set a track's INPUT routing by display name (e.g. "Resampling" to capture the master output).
+    If the requested routing isn't found, returns the list of available routing names.
+
+    Parameters:
+    - track_index:  the track to route
+    - routing_name: input routing display name (default "Resampling")
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_track_input_routing", {
+            "track_index": track_index, "routing_name": routing_name})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting input routing: {str(e)}")
+        return f"Error setting input routing: {str(e)}"
+
+
+@mcp.tool()
+def set_track_monitor(ctx: Context, track_index: int, state: int = 2) -> str:
+    """
+    Set a track's monitoring state: 0 = In, 1 = Auto, 2 = Off.
+    Use Off (2) on a Resampling capture track so it doesn't feed back while recording.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_track_monitor", {
+            "track_index": track_index, "state": state})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting monitor: {str(e)}")
+        return f"Error setting monitor: {str(e)}"
+
+
+@mcp.tool()
+def get_clip_file_path(ctx: Context, track_index: int, clip_index: int = 0) -> str:
+    """
+    Return the sample file path of a recorded audio clip on a track
+    (checks the session clip slot first, then the latest arrangement clip).
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_clip_file_path", {
+            "track_index": track_index, "clip_index": clip_index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting clip file path: {str(e)}")
+        return f"Error getting clip file path: {str(e)}"
+
+
+@mcp.tool()
+def export_audio(ctx: Context, bars: int = 16, scene_index: int = 0) -> str:
+    """
+    Capture the currently-playing Session audio to a WAV via real-time RESAMPLING, and return the recorded file path.
+
+    Ableton's API has no render-to-disk, so this is a real-time capture — it takes `bars` worth of time
+    at the current tempo. It:
+      1. creates an audio track, routes its input to "Resampling" (the master bus), sets monitoring Off, arms it;
+      2. (re)launches scene `scene_index` and records into the capture track's clip slot;
+      3. waits the loop duration, stops, and reads the recorded clip's file_path.
+
+    Parameters:
+    - bars:        number of 4/4 bars to capture (default 16)
+    - scene_index: the Session scene/row to play + record into (default 0)
+
+    Note: requires the AbletonMCP Remote Script to expose set_track_input_routing / set_track_monitor.
+    If this errors with an unknown-command message, reload the control surface in Live's Link/MIDI prefs
+    (or restart Live). The WAV lands in the Live set's Samples/Recorded folder; its path is in `recording.file_path`.
+    Launch quantization may offset the capture start by up to a bar; capture a couple extra bars if you need a clean loop.
+    """
+    import time
+    try:
+        ableton = get_ableton_connection()
+        info = ableton.send_command("get_session_info")
+        bpm = float(info.get("tempo", 120.0))
+        seconds = bars * (60.0 / bpm) * 4.0
+
+        cap = ableton.send_command("create_audio_track", {"index": -1})
+        cap_idx = cap.get("index")
+
+        routing = ableton.send_command("set_track_input_routing", {
+            "track_index": cap_idx, "routing_name": "Resampling"})
+        if not routing.get("set"):
+            return ("Could not set 'Resampling' input on the capture track. "
+                    "Available input routings: " + json.dumps(routing.get("available", [])))
+
+        ableton.send_command("set_track_monitor", {"track_index": cap_idx, "state": 2})
+        ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": True})
+
+        # Launch the content scene, then start recording into the armed capture slot.
+        ableton.send_command("fire_scene", {"index": scene_index})
+        ableton.send_command("fire_clip", {"track_index": cap_idx, "clip_index": scene_index})
+
+        time.sleep(seconds + 0.4)
+
+        ableton.send_command("stop_all_clips")
+        ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": False})
+
+        fp = ableton.send_command("get_clip_file_path", {
+            "track_index": cap_idx, "clip_index": scene_index})
+
+        return json.dumps({
+            "capture_track_index": cap_idx,
+            "bars": bars, "tempo": bpm, "captured_seconds": round(seconds, 1),
+            "recording": fp,
+        }, indent=2)
+    except Exception as e:
+        logger.error(f"Error exporting audio: {str(e)}")
+        return f"Error exporting audio: {str(e)}"
 
 
 # Main execution

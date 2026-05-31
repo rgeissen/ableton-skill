@@ -239,6 +239,10 @@ class AbletonMCP(ControlSurface):
                 response["result"] = self._get_track_info(track_index, include_clips, include_devices)
             elif command_type == "get_all_tracks_info":
                 response["result"] = self._get_all_tracks_info()
+            elif command_type == "get_clip_file_path":
+                track_index = params.get("track_index", 0)
+                clip_index = params.get("clip_index", 0)
+                response["result"] = self._get_clip_file_path(track_index, clip_index)
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name",
                                  "create_clip", "add_notes_to_clip", "set_clip_name",
@@ -263,7 +267,9 @@ class AbletonMCP(ControlSurface):
                                  # Clip extras
                                  "remove_notes_from_clip", "set_clip_loop", "set_clip_color",
                                  # Arrangement
-                                 "switch_to_arrangement_view"]:
+                                 "switch_to_arrangement_view",
+                                 # Audio capture / export
+                                 "set_track_input_routing", "set_track_monitor"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -425,6 +431,14 @@ class AbletonMCP(ControlSurface):
                         elif command_type == "duplicate_track":
                             track_index = params.get("track_index", 0)
                             result = self._duplicate_track(track_index)
+                        elif command_type == "set_track_input_routing":
+                            track_index = params.get("track_index", 0)
+                            routing_name = params.get("routing_name", "Resampling")
+                            result = self._set_track_input_routing(track_index, routing_name)
+                        elif command_type == "set_track_monitor":
+                            track_index = params.get("track_index", 0)
+                            state = params.get("state", 2)
+                            result = self._set_track_monitor(track_index, state)
                         # Clip extras
                         elif command_type == "remove_notes_from_clip":
                             track_index = params.get("track_index", 0)
@@ -1979,6 +1993,72 @@ class AbletonMCP(ControlSurface):
             return {"track_index": track_index, "arm": track.arm}
         except Exception as e:
             self.log_message("Error setting track arm: " + str(e))
+            raise
+
+    def _set_track_input_routing(self, track_index, routing_name):
+        """Set a track's INPUT routing type by display name (e.g. 'Resampling').
+        Live requires the routing *object* from available_input_routing_types,
+        not a string — so we look it up by display_name."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            available = list(track.available_input_routing_types)
+            names = [rt.display_name for rt in available]
+            match = None
+            for rt in available:
+                if rt.display_name == routing_name:
+                    match = rt
+                    break
+            if match is None:
+                return {"track_index": track_index, "set": False,
+                        "requested": routing_name, "available": names}
+            track.input_routing_type = match
+            return {"track_index": track_index, "set": True,
+                    "input_routing_type": track.input_routing_type.display_name,
+                    "available": names}
+        except Exception as e:
+            self.log_message("Error setting track input routing: " + str(e))
+            raise
+
+    def _set_track_monitor(self, track_index, state):
+        """Set a track's monitoring state: 0=In, 1=Auto, 2=Off."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            track.current_monitoring_state = int(state)
+            return {"track_index": track_index,
+                    "monitoring_state": track.current_monitoring_state}
+        except Exception as e:
+            self.log_message("Error setting track monitor: " + str(e))
+            raise
+
+    def _get_clip_file_path(self, track_index, clip_index):
+        """Return the sample file path of a recorded audio clip — checks the
+        session clip slot first, then falls back to the latest arrangement clip."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            if 0 <= clip_index < len(track.clip_slots):
+                slot = track.clip_slots[clip_index]
+                if slot.has_clip:
+                    clip = slot.clip
+                    return {"source": "session", "has_clip": True,
+                            "is_audio_clip": bool(getattr(clip, "is_audio_clip", False)),
+                            "file_path": getattr(clip, "file_path", None),
+                            "name": clip.name}
+            arr = list(getattr(track, "arrangement_clips", []))
+            if arr:
+                clip = arr[-1]
+                return {"source": "arrangement", "has_clip": True,
+                        "is_audio_clip": bool(getattr(clip, "is_audio_clip", False)),
+                        "file_path": getattr(clip, "file_path", None),
+                        "name": clip.name}
+            return {"has_clip": False, "file_path": None}
+        except Exception as e:
+            self.log_message("Error getting clip file path: " + str(e))
             raise
 
     def _duplicate_track(self, track_index):
