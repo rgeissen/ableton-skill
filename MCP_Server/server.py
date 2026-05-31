@@ -213,7 +213,8 @@ class AbletonConnection:
             "set_track_mixer", "set_track_mute", "set_track_solo",
             "duplicate_clip", "delete_clip", "delete_track",
             "set_device_param", "undo", "save_set", "set_scale_mode",
-            "set_track_input_routing", "set_track_monitor", "fire_clip_slot"
+            "set_track_input_routing", "set_track_monitor", "fire_clip_slot",
+            "start_synced_capture"
         ]
         
         try:
@@ -2689,17 +2690,30 @@ def export_audio(ctx: Context, bars: int = 16, scene_index: int = 0) -> str:
 
         ableton.send_command("set_track_monitor", {"track_index": cap_idx, "state": 2})
         ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": True})
+        ableton.send_command("set_track_name", {"track_index": cap_idx, "name": "GC Export"})
 
-        # Launch the content scene, then start recording into the armed (empty) capture slot.
-        # fire_clip_slot fires the slot directly — an empty slot on an armed track records.
-        ableton.send_command("fire_scene", {"index": scene_index})
-        ableton.send_command("fire_clip_slot", {"track_index": cap_idx, "clip_index": scene_index})
+        # Fire the content scene AND the empty armed capture slot in the SAME Live tick, so they
+        # quantize to the identical launch boundary → the recording's bar 1 == the content's bar 1.
+        ableton.send_command("start_synced_capture", {
+            "content_scene_index": scene_index,
+            "capture_track_index": cap_idx,
+            "capture_slot_index": scene_index})
 
-        time.sleep(seconds + 0.4)
+        bar_len = (60.0 / bpm) * 4.0
+        # Record the full loop + a 2-bar buffer so launch-quantization latency never clips the end.
+        time.sleep(seconds + bar_len * 2 + 0.5)
 
         ableton.send_command("stop_all_clips")
         ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": False})
         time.sleep(0.5)  # let Live finalize / flush the recorded sample to disk
+
+        # Trim the recording to an exact, bar-aligned loop (start is aligned to content bar 1).
+        try:
+            ableton.send_command("set_clip_loop", {
+                "track_index": cap_idx, "clip_index": scene_index,
+                "looping": True, "loop_start": 0.0, "loop_end": float(bars) * 4.0})
+        except Exception:
+            pass
 
         fp = ableton.send_command("get_clip_file_path", {
             "track_index": cap_idx, "clip_index": scene_index})

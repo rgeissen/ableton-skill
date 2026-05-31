@@ -270,7 +270,7 @@ class AbletonMCP(ControlSurface):
                                  "switch_to_arrangement_view",
                                  # Audio capture / export
                                  "set_track_input_routing", "set_track_monitor",
-                                 "fire_clip_slot"]:
+                                 "fire_clip_slot", "start_synced_capture"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -444,6 +444,11 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
                             result = self._fire_clip_slot(track_index, clip_index)
+                        elif command_type == "start_synced_capture":
+                            content_scene_index = params.get("content_scene_index", 0)
+                            capture_track_index = params.get("capture_track_index", 0)
+                            capture_slot_index = params.get("capture_slot_index", 0)
+                            result = self._start_synced_capture(content_scene_index, capture_track_index, capture_slot_index)
                         # Clip extras
                         elif command_type == "remove_notes_from_clip":
                             track_index = params.get("track_index", 0)
@@ -2083,6 +2088,30 @@ class AbletonMCP(ControlSurface):
                     "is_recording": bool(getattr(slot, "is_recording", False))}
         except Exception as e:
             self.log_message("Error firing clip slot: " + str(e))
+            raise
+
+    def _start_synced_capture(self, content_scene_index, capture_track_index, capture_slot_index):
+        """Fire the content scene and the (empty, armed) capture slot in the SAME main-thread
+        tick, so Live quantizes both to the identical launch boundary — a sample-aligned
+        resampling capture (recording bar 1 == content bar 1)."""
+        try:
+            song = self._song
+            if content_scene_index < 0 or content_scene_index >= len(song.scenes):
+                raise IndexError("Scene index out of range")
+            if capture_track_index < 0 or capture_track_index >= len(song.tracks):
+                raise IndexError("Capture track index out of range")
+            track = song.tracks[capture_track_index]
+            if capture_slot_index < 0 or capture_slot_index >= len(track.clip_slots):
+                raise IndexError("Capture slot index out of range")
+            # Same-tick double fire: the scene launches/relaunches the content from bar 1
+            # (and would stop the empty capture slot); the explicit slot.fire() right after
+            # overrides that and arms recording — both quantize to the same boundary.
+            song.scenes[content_scene_index].fire()
+            track.clip_slots[capture_slot_index].fire()
+            return {"content_scene": content_scene_index,
+                    "capture": [capture_track_index, capture_slot_index]}
+        except Exception as e:
+            self.log_message("Error starting synced capture: " + str(e))
             raise
 
     def _duplicate_track(self, track_index):
