@@ -2728,6 +2728,93 @@ def export_audio(ctx: Context, bars: int = 16, scene_index: int = 0) -> str:
         return f"Error exporting audio: {str(e)}"
 
 
+@mcp.tool()
+def export_tutorial(ctx: Context, scene_bars: List[int], content_tracks: List[int], scene_start: int = 0) -> str:
+    """
+    Capture a multi-scene Session tutorial into ONE continuous WAV (all scenes back-to-back) via
+    real-time resampling, and return the WAV path + the absolute segment_start_seconds per scene.
+
+    Mute GC Player (the drum/student track) FIRST — the student plays those live; they must not be in the backing.
+
+    Parameters:
+    - scene_bars:     bar count of each scene IN ORDER, e.g. [4,4,4,8, 4,4,4,8, 4,8,4,8]
+    - content_tracks: backing track indices to play through the capture (NOT the capture track),
+                      e.g. [GC_CHORDS, GC_BASS, GC_MELODY, GC_PAD]. Fired per-track at each boundary
+                      so a scene launch never stops the capture recording.
+    - scene_start:    first scene/row index (default 0)
+
+    Real-time: takes the whole tutorial's length to run. The capture starts sample-aligned on scene
+    `scene_start`'s bar 1; each scene transition is queued one bar early so it lands seamlessly on the
+    bar boundary. The returned segment_start_seconds are absolute offsets into the WAV for the
+    training_sequence; all lessons share this one backing_audio_url.
+    """
+    import time
+    try:
+        ableton = get_ableton_connection()
+        info = ableton.send_command("get_session_info")
+        bpm = float(info.get("tempo", 120.0))
+        bar_len = (60.0 / bpm) * 4.0
+
+        cap = ableton.send_command("create_audio_track", {"index": -1})
+        cap_idx = cap.get("index")
+        r = ableton.send_command("set_track_input_routing", {
+            "track_index": cap_idx, "routing_name": "Resampling"})
+        if not r.get("set"):
+            return ("Could not set 'Resampling' input. Available: " + json.dumps(r.get("available", [])))
+        ableton.send_command("set_track_monitor", {"track_index": cap_idx, "state": 2})
+        ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": True})
+        ableton.send_command("set_track_name", {"track_index": cap_idx, "name": "GC Export"})
+
+        # Absolute offsets into the WAV for each scene (the training_sequence segment_start_seconds).
+        seg_starts, acc = [], 0
+        for nb in scene_bars:
+            seg_starts.append(round(acc * bar_len, 3))
+            acc += nb
+        total_bars = acc
+
+        # Start scene 0 + the capture in the same tick (sample-aligned).
+        ableton.send_command("start_synced_capture", {
+            "content_scene_index": scene_start,
+            "capture_track_index": cap_idx,
+            "capture_slot_index": scene_start})
+
+        # Play each scene for its duration; queue the next scene's clips one bar early (per-track,
+        # NOT a scene launch) so the capture keeps recording and the switch lands on the bar boundary.
+        for i in range(len(scene_bars)):
+            nxt = i + 1
+            if nxt < len(scene_bars):
+                time.sleep(max(0.0, scene_bars[i] - 1) * bar_len)
+                for t in content_tracks:
+                    ableton.send_command("fire_clip", {
+                        "track_index": t, "clip_index": scene_start + nxt})
+                time.sleep(1 * bar_len)
+            else:
+                time.sleep(scene_bars[i] * bar_len)
+
+        time.sleep(bar_len + 0.5)  # tail buffer
+        ableton.send_command("stop_all_clips")
+        ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": False})
+        time.sleep(0.5)
+
+        try:
+            ableton.send_command("set_clip_loop", {
+                "track_index": cap_idx, "clip_index": scene_start,
+                "looping": False, "loop_start": 0.0, "loop_end": float(total_bars) * 4.0})
+        except Exception:
+            pass
+
+        fp = ableton.send_command("get_clip_file_path", {
+            "track_index": cap_idx, "clip_index": scene_start})
+
+        return json.dumps({
+            "capture_track_index": cap_idx, "total_bars": total_bars, "tempo": bpm,
+            "segment_start_seconds": seg_starts, "recording": fp,
+        }, indent=2)
+    except Exception as e:
+        logger.error(f"Error exporting tutorial: {str(e)}")
+        return f"Error exporting tutorial: {str(e)}"
+
+
 # Main execution
 def main():
     import argparse
