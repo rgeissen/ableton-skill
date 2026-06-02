@@ -327,6 +327,12 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             browser_path = params.get("browser_path", "")
                             result = self._load_browser_item_by_path(track_index, browser_path)
+                        elif command_type == "load_sample_to_drum_pad":
+                            track_index = params.get("track_index", 0)
+                            pad_note = params.get("pad_note", 36)
+                            browser_path = params.get("browser_path", "")
+                            device_index = params.get("device_index", None)
+                            result = self._load_sample_to_drum_pad(track_index, pad_note, browser_path, device_index)
                         elif command_type == "create_audio_track":
                             index = params.get("index", -1)
                             result = self._create_audio_track(index)
@@ -1075,6 +1081,95 @@ class AbletonMCP(ControlSurface):
             return {"loaded": True, "item_name": current_item.name}
         except Exception as e:
             self.log_message("Error loading browser item by path: {0}".format(str(e)))
+            raise
+
+    def _navigate_browser_path(self, browser_path):
+        """Walk a '/'-separated browser_path (root = browser category, e.g. user_library)
+        and return the loadable item. Name-matched, so parentheses in folder names are fine."""
+        app = self.application()
+        if not app:
+            raise RuntimeError("Could not access Live application")
+        path_parts = [p for p in browser_path.split("/") if p]
+        if not path_parts:
+            raise ValueError("Invalid browser_path")
+        root_category = path_parts[0].lower()
+        if not hasattr(app.browser, root_category):
+            raise ValueError("Unknown browser category: {0}".format(root_category))
+        current_item = getattr(app.browser, root_category)
+        for part in path_parts[1:]:
+            if not hasattr(current_item, 'children'):
+                raise ValueError("Item has no children at this path level")
+            found = None
+            for child in current_item.children:
+                if hasattr(child, 'name') and child.name.lower() == part.lower():
+                    found = child
+                    break
+            if found is None:
+                raise ValueError("Path part '{0}' not found".format(part))
+            current_item = found
+        if not (hasattr(current_item, 'is_loadable') and current_item.is_loadable):
+            raise ValueError("Item at '{0}' is not loadable".format(browser_path))
+        return current_item
+
+    def _load_sample_to_drum_pad(self, track_index, pad_note, browser_path, device_index=None):
+        """Select a drum-rack pad by MIDI note and load a browser sample onto THAT pad.
+
+        A plain track-level load only ever targets the currently-selected pad; this lets the
+        caller place a specific one-shot on a specific pad (kick 36, clap 38, hat 42, ...).
+        device_index defaults to the first drum rack found on the track.
+        """
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+
+            # Resolve the drum rack device
+            device = None
+            if device_index is not None:
+                if device_index < 0 or device_index >= len(track.devices):
+                    raise IndexError("Device index out of range")
+                device = track.devices[device_index]
+                if not getattr(device, "can_have_drum_pads", False):
+                    raise ValueError("Device at index {0} is not a drum rack".format(device_index))
+            else:
+                for d in track.devices:
+                    if getattr(d, "can_have_drum_pads", False):
+                        device = d
+                        break
+                if device is None:
+                    raise ValueError("No drum rack found on track {0}".format(track_index))
+
+            # Find the target pad by note
+            target_pad = None
+            for pad in device.drum_pads:
+                if pad.note == pad_note:
+                    target_pad = pad
+                    break
+            if target_pad is None:
+                raise ValueError("No drum pad at note {0}".format(pad_note))
+
+            # Navigate the browser to the sample
+            item = self._navigate_browser_path(browser_path)
+
+            # Select track -> device -> pad, then load onto the selected pad
+            app = self.application()
+            self._song.view.selected_track = track
+            try:
+                track.view.selected_device = device
+            except Exception:
+                pass
+            device.view.selected_drum_pad = target_pad
+            app.browser.load_item(item)
+
+            return {
+                "loaded": True,
+                "item_name": item.name,
+                "track_index": track_index,
+                "pad_note": pad_note,
+                "device_name": device.name,
+            }
+        except Exception as e:
+            self.log_message("Error loading sample to drum pad: {0}".format(str(e)))
             raise
 
     def _browse_user_library(self, folder=None, max_items=200):

@@ -856,6 +856,39 @@ def load_sound_by_path(ctx: Context, track_index: int, browser_path: str) -> str
 
 
 @mcp.tool()
+def load_sample_to_drum_pad(ctx: Context, track_index: int, pad_note: int, browser_path: str, device_index: int = -1) -> str:
+    """
+    Load a sample onto a SPECIFIC drum-rack pad (by MIDI note) on a track.
+
+    Unlike load_sound_by_path — which only loads onto the currently-selected pad — this
+    selects the target pad first, so you can deterministically place e.g. a kick on note 36,
+    clap on 38, closed-hat on 42, open-hat on 46. Essential for assembling a one-shot kit
+    where audition pads must match the in-game pad map.
+
+    Parameters:
+    - track_index:  Track holding the drum rack.
+    - pad_note:     MIDI note of the target pad (Push/GridCraft: kick 36, clap 38, closed-hat 42, open-hat 46, ...).
+    - browser_path: Full browser path to the sample. The FIRST segment is a browser category
+                    (e.g. "user_library"), e.g.
+                    "user_library/Samples/Alternative/02 - PML/.../One Shots/Kicks/PML_BOEHMER_KICK_001.wav".
+                    Segments are name-matched, so parentheses in pack folder names are fine.
+    - device_index: Drum rack device index on the track. Default -1 = first drum rack found.
+    """
+    try:
+        ableton = get_ableton_connection()
+        payload = {"track_index": track_index, "pad_note": pad_note, "browser_path": browser_path}
+        if device_index is not None and device_index >= 0:
+            payload["device_index"] = device_index
+        result = ableton.send_command("load_sample_to_drum_pad", payload)
+        if result.get("loaded"):
+            return f"Loaded '{result.get('item_name')}' onto pad {pad_note} of '{result.get('device_name')}' on track {track_index}"
+        return f"Could not load '{browser_path}' onto pad {pad_note}"
+    except Exception as e:
+        logger.error(f"Error loading sample to drum pad: {str(e)}")
+        return f"Error loading sample to drum pad: {str(e)}"
+
+
+@mcp.tool()
 def browse_user_library(ctx: Context, folder: str = "", max_items: int = 200) -> str:
     """
     Browse the User Library directly via the Live browser API and return loadable items
