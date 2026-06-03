@@ -248,7 +248,7 @@ class AbletonMCP(ControlSurface):
                                  "create_clip", "add_notes_to_clip", "set_clip_name",
                                  "set_tempo", "fire_clip", "stop_clip",
                                  "start_playback", "stop_playback", "load_browser_item",
-                                 "load_browser_item_by_path",
+                                 "load_browser_item_by_path", "load_sample_to_drum_pad",
                                  "create_audio_track", "set_track_mixer", "set_track_mute",
                                  "set_track_solo", "duplicate_clip", "delete_clip",
                                  "delete_track", "set_device_param", "undo",
