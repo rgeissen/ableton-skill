@@ -256,6 +256,7 @@ class AbletonMCP(ControlSurface):
                                  # Transport extras
                                  "redo", "tap_tempo", "capture_midi",
                                  "set_time_signature", "set_metronome",
+                                 "set_launch_quantization",
                                  "set_arrangement_record", "set_current_song_time",
                                  # Scenes
                                  "create_scene", "delete_scene", "fire_scene",
@@ -270,7 +271,7 @@ class AbletonMCP(ControlSurface):
                                  "switch_to_arrangement_view",
                                  # Audio capture / export
                                  "set_track_input_routing", "set_track_monitor",
-                                 "fire_clip_slot", "start_synced_capture"]:
+                                 "fire_clip_slot", "fire_clips", "start_synced_capture"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -396,6 +397,9 @@ class AbletonMCP(ControlSurface):
                         elif command_type == "set_metronome":
                             enabled = params.get("enabled", True)
                             result = self._set_metronome(enabled)
+                        elif command_type == "set_launch_quantization":
+                            quantization = params.get("quantization", "none")
+                            result = self._set_launch_quantization(quantization)
                         elif command_type == "set_arrangement_record":
                             record = params.get("record", False)
                             result = self._set_arrangement_record(record)
@@ -450,6 +454,9 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
                             result = self._fire_clip_slot(track_index, clip_index)
+                        elif command_type == "fire_clips":
+                            clips = params.get("clips", [])
+                            result = self._fire_clips(clips)
                         elif command_type == "start_synced_capture":
                             content_scene_index = params.get("content_scene_index", 0)
                             capture_track_index = params.get("capture_track_index", 0)
@@ -1925,6 +1932,38 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error setting metronome: " + str(e))
             raise
 
+    def _set_launch_quantization(self, quantization):
+        # Set the global clip-launch (trigger) quantization.
+        # Accepts a label ("none", "1 bar", "1/4", ...) or the raw Live enum int.
+        try:
+            import Live
+            Q = Live.Song.Quantization
+            names = {
+                "none": "q_no_q", "no_q": "q_no_q", "off": "q_no_q",
+                "8 bars": "q_8_bars", "4 bars": "q_4_bars", "2 bars": "q_2_bars",
+                "1 bar": "q_bar", "bar": "q_bar",
+                "1/2": "q_half", "1/2t": "q_half_triplet",
+                "1/4": "q_quarter", "1/4t": "q_quarter_triplet",
+                "1/8": "q_eight", "1/8t": "q_eight_triplet",
+                "1/16": "q_sixtenth", "1/16t": "q_sixtenth_triplet",
+                "1/32": "q_thirtytwoth",
+            }
+            if isinstance(quantization, bool):
+                raise Exception("Invalid quantization value")
+            if isinstance(quantization, (int, float)):
+                val = int(quantization)
+            else:
+                key = str(quantization).strip().lower()
+                if key not in names:
+                    raise Exception("Unknown quantization '" + str(quantization) +
+                                    "'. Use one of: " + ", ".join(sorted(names.keys())))
+                val = getattr(Q, names[key])
+            self._song.clip_trigger_quantization = val
+            return {"clip_trigger_quantization": int(self._song.clip_trigger_quantization)}
+        except Exception as e:
+            self.log_message("Error setting launch quantization: " + str(e))
+            raise
+
     def _set_arrangement_record(self, record):
         try:
             self._song.arrangement_record_arm = bool(record)
@@ -2183,6 +2222,24 @@ class AbletonMCP(ControlSurface):
                     "is_recording": bool(getattr(slot, "is_recording", False))}
         except Exception as e:
             self.log_message("Error firing clip slot: " + str(e))
+            raise
+
+    def _fire_clips(self, clips):
+        """Fire a list of clip slots in ONE main-thread tick — atomic, like a scene launch,
+        but only the given tracks (so a resampling capture track is left untouched and keeps
+        recording). Eliminates the per-clip socket latency that staggers separate fire_clip
+        calls; combined with launch quantization, all the clips snap to the SAME boundary."""
+        try:
+            fired = []
+            for entry in clips:
+                ti = int(entry["track_index"])
+                ci = int(entry["clip_index"])
+                slot = self._song.tracks[ti].clip_slots[ci]
+                slot.fire()
+                fired.append([ti, ci])
+            return {"fired": fired}
+        except Exception as e:
+            self.log_message("Error firing clips: " + str(e))
             raise
 
     def _start_synced_capture(self, content_scene_index, capture_track_index, capture_slot_index):

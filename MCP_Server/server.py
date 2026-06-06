@@ -2217,6 +2217,32 @@ def set_metronome(ctx: Context, enabled: bool) -> str:
 
 
 @mcp.tool()
+def set_launch_quantization(ctx: Context, quantization: str = "none") -> str:
+    """
+    Set the GLOBAL clip-launch (trigger) quantization — the transport-bar
+    quantization menu. Controls when a fired clip/scene actually starts.
+
+    Set to "none" so fired clips launch immediately/together (needed for a
+    clean multi-scene resampling capture — with "1 bar" the per-track fires
+    that straddle a bar boundary land a whole bar apart, so a scene's tracks
+    come in successively instead of together).
+
+    Parameters:
+    - quantization: one of
+        "none" · "8 bars" · "4 bars" · "2 bars" · "1 bar" ·
+        "1/2" · "1/2t" · "1/4" · "1/4t" · "1/8" · "1/8t" · "1/16" · "1/16t" · "1/32"
+      (or the raw Live.Song.Quantization int).
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("set_launch_quantization", {"quantization": quantization})
+        return f"Launch quantization set (clip_trigger_quantization={result.get('clip_trigger_quantization')})"
+    except Exception as e:
+        logger.error(f"Error setting launch quantization: {str(e)}")
+        return f"Error setting launch quantization: {str(e)}"
+
+
+@mcp.tool()
 def set_arrangement_record(ctx: Context, record: bool) -> str:
     """
     Arm or disarm arrangement recording.
@@ -2776,10 +2802,23 @@ def export_tutorial(ctx: Context, scene_bars: List[int], content_tracks: List[in
                       so a scene launch never stops the capture recording.
     - scene_start:    first scene/row index (default 0)
 
-    Real-time: takes the whole tutorial's length to run. The capture starts sample-aligned on scene
-    `scene_start`'s bar 1; each scene transition is queued one bar early so it lands seamlessly on the
-    bar boundary. The returned segment_start_seconds are absolute offsets into the WAV for the
-    training_sequence; all lessons share this one backing_audio_url.
+    Real-time: takes the whole tutorial's length to run. Mechanism (battle-tested):
+    - SAMPLE-ALIGNED START with a DETECTED anchor: launch quantization = 1 Bar so the capture slot
+      and scene-0 clips snap onto the SAME bar boundary (a None start mis-aligns the very beginning).
+      That boundary is NON-DETERMINISTIC though — Live latches the launch on the current downbeat OR
+      one bar later — so a FIXED t0 drops the intro's last bar one run and adds an extra bar the next.
+      Instead we DETECT the real launch: poll the scene-0 content clip until is_playing is true (with
+      quant, is_playing flips only AT the launch, not when triggered), then anchor t0 to that bar. The
+      intro is always a full 4 bars regardless of which downbeat Live picks.
+    - ATOMIC, DRIFT-IMMUNE TRANSITIONS: each scene switch fires the next scene's content clips via a
+      single fire_clips call (one Live tick → all clips together, no per-clip socket-latency stagger),
+      half a bar before the boundary so 1-bar quant snaps it to the exact boundary. The fire is TIMED
+      off Ableton's live transport (get_current_song_time) re-read every poll — NOT accumulated
+      wall-clock sleeps, which drift over a 2-min capture and break sync midway. fire_clips touches
+      ONLY the content tracks, so the capture's recording is never stopped (a full scene launch would
+      fire the empty capture slot and stop it).
+    The returned segment_start_seconds are absolute offsets into the WAV for the training_sequence;
+    all lessons share this one backing_audio_url.
     """
     import time
     try:
@@ -2805,26 +2844,75 @@ def export_tutorial(ctx: Context, scene_bars: List[int], content_tracks: List[in
             acc += nb
         total_bars = acc
 
-        # Start scene 0 + the capture in the same tick (sample-aligned).
+        # SAMPLE-ALIGNED START: launch quantization = 1 Bar so the capture slot and the scene-0
+        # clips snap to the SAME bar boundary (a None start mis-aligns the very beginning). Begin
+        # from bar 1. We keep 1-bar quant for the in-flight transitions too (bar-aligns each clip's
+        # downbeat).
+        ableton.send_command("set_current_song_time", {"time": 0.0})
+        ableton.send_command("set_launch_quantization", {"quantization": "1 bar"})
         ableton.send_command("start_synced_capture", {
             "content_scene_index": scene_start,
             "capture_track_index": cap_idx,
             "capture_slot_index": scene_start})
 
-        # Play each scene for its duration; queue the next scene's clips one bar early (per-track,
-        # NOT a scene launch) so the capture keeps recording and the switch lands on the bar boundary.
-        for i in range(len(scene_bars)):
-            nxt = i + 1
-            if nxt < len(scene_bars):
-                time.sleep(max(0.0, scene_bars[i] - 1) * bar_len)
-                for t in content_tracks:
-                    ableton.send_command("fire_clip", {
-                        "track_index": t, "clip_index": scene_start + nxt})
-                time.sleep(1 * bar_len)
-            else:
-                time.sleep(scene_bars[i] * bar_len)
+        cum = [0]
+        for nb in scene_bars:
+            cum.append(cum[-1] + nb)                        # cumulative bars; cum[k]*4 = boundary beat
+        PRE = 2.0                                           # fire 1/2 bar (2 beats) before the boundary
 
-        time.sleep(bar_len + 0.5)  # tail buffer
+        def _now_beats():
+            r = ableton.send_command("get_current_song_time")
+            return float(r.get("current_song_time", 0.0))
+
+        # DETERMINISTIC START ANCHOR. With 1-bar launch quantization the actual content-launch
+        # boundary is NON-deterministic across runs: sometimes the scene latches on the current
+        # downbeat (song-time 0), sometimes a full bar later (song-time 4). Any FIXED t0 offset is
+        # therefore wrong on some runs — it made the intro come out 3 bars one run and 5 bars the
+        # next. So DETECT the real launch instead of assuming it: poll the scene-0 content clip until
+        # Live reports it actually playing (with quantization, `is_playing` flips only AT the launch
+        # boundary, not when merely triggered), then anchor t0 to the bar boundary at that instant.
+        # This yields a correct 4-bar intro regardless of which boundary the launch latched onto.
+        # WAV time 0 == this boundary, so seg_starts (WAV-relative) stay correct.
+        probe_track = content_tracks[0]
+        launch_deadline = time.time() + 12.0
+        while time.time() < launch_deadline:
+            ti = ableton.send_command("get_track_info",
+                                      {"track_index": probe_track, "include_clips": True})
+            slots = ti.get("clip_slots", []) if isinstance(ti, dict) else []
+            clip = slots[scene_start].get("clip") if scene_start < len(slots) else None
+            if clip and clip.get("is_playing"):
+                break
+            time.sleep(0.05)
+        t0 = (int(_now_beats() // 4.0)) * 4.0   # bar boundary at the ACTUAL content launch
+
+        # DRIFT-IMMUNE transitions: time each fire off Ableton's live transport (current_song_time,
+        # re-read every poll) — not accumulated wall-clock sleeps (which drift and break sync
+        # midway). Fire HALF A BAR before each boundary so 1-bar quant snaps it to the correct
+        # boundary even with small timing error. fire_clips touches ONLY the content tracks (one
+        # Live tick → atomic), so the capture's scene-0 recording keeps running.
+        wall0 = time.time()
+        for i in range(len(scene_bars) - 1):
+            target = t0 + cum[i + 1] * 4.0 - PRE            # half a bar before the boundary
+            deadline = wall0 + (cum[i + 1] * 4.0) * (60.0 / bpm) + 10.0   # hang-guard
+            while True:
+                now = _now_beats()
+                if now >= target or time.time() > deadline:
+                    break
+                time.sleep(min((target - now) * (60.0 / bpm), 0.12))
+            ableton.send_command("fire_clips", {
+                "clips": [{"track_index": t, "clip_index": scene_start + i + 1}
+                          for t in content_tracks]})
+
+        # Let the final scene play out by the transport clock, then a GENEROUS tail so the last bar
+        # is never truncated and the reverb/delay decay is captured. (A 0.5 s tail occasionally cut
+        # ~1 s off the final climax.) The WAV keeps the full recording; segment_start_seconds still
+        # index correctly within the content, and the extra tail is just decay past the last block.
+        end_target = t0 + cum[-1] * 4.0
+        end_deadline = wall0 + (cum[-1] * 4.0) * (60.0 / bpm) + 15.0
+        while _now_beats() < end_target and time.time() < end_deadline:
+            time.sleep(0.1)
+        time.sleep(2.5)
+
         ableton.send_command("stop_all_clips")
         ableton.send_command("set_track_arm", {"track_index": cap_idx, "arm": False})
         time.sleep(0.5)
