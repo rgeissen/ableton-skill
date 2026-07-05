@@ -155,25 +155,32 @@ Once the config file has been set on Claude, and the remote script is running in
 
 **Compose**
 - Create MIDI and audio tracks; duplicate, color, arm, delete
-- Create clips, write and edit MIDI notes, set clip loop, color, name
+- Create clips, write/edit MIDI notes (`add_notes_to_clip` **replaces by default**, `replace=False` to append), set clip loop, color, name
 - Generate chords, progressions, bass lines, melodies with music theory built in
 - Humanize patterns for a natural feel
 
 **Sounds**
 - Search Ableton's library by tag (`search_by_tags`) — works without Live running
-- Load instruments, effects, drum kits directly from search results
+- Load instruments, effects, drum kits; place samples on specific drum-rack pads; browse the user library
 - Read and set any device parameter including nested racks and Drum Rack pads
+- Edit audio clips — warp mode, pitch/transpose, gain (`set_audio_clip_properties`) for tuning vocals, pitching chops, and time-stretch feel
 
 **Arrange**
 - Create, name, color, and fire scenes
 - Switch to the Arrangement timeline; move the playhead; list arrangement clips
-- Arm arrangement recording; capture recently played MIDI
+- Arm arrangement recording; capture recently played MIDI; set launch quantization
+- Export/bounce audio to WAV via real-time resampling (single scene or multi-scene)
 - Read cue point markers
 
 **Mix**
 - Set track volume, panning, mute, solo
 - Create return tracks; set send levels from any track to any return
 - Adjust EQ, compression, or any device parameter on regular, return, and master tracks
+
+**Vocals** (spans record → edit → process)
+- Record a mic/live take: discover I/O (`get_track_io`), route input (`set_track_input_routing` / `set_track_input_channel`), monitor, arm, and record into a slot
+- Tune/warp/gain the recorded clip (`set_audio_clip_properties` — Complex Pro for natural vocals)
+- Process it with the mixing device tools (EQ, compression, de-essing, reverb sends)
 
 **Events**
 - Subscribe to live state changes: tempo, playback, song time, track count
@@ -211,6 +218,7 @@ Once the config file has been set on Claude, and the remote script is running in
 
 - **Connection issues**: Make sure the Ableton Remote Script is loaded, and the MCP server is configured on Claude
 - **Timeout errors**: Try simplifying your requests or breaking them into smaller steps
+- **Stale Remote Script** (`Unknown command: …` errors, or new behavior missing — e.g. MIDI notes *stacking* instead of replacing): Ableton loads the Remote Script copy from **inside the app bundle**, which can lag the repo. Run `./deploy_remote_script.sh` (copies the script into every installed Ableton app and clears bytecode), then restart Ableton or reselect the AbletonMCP control surface in Preferences → Link/Tempo/MIDI.
 - **Have you tried turning it off and on again?**: If you're still having connection errors, try restarting both Claude and Ableton Live
 
 ## Technical Details

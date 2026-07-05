@@ -167,6 +167,10 @@ Three thin wrapper tools: `subscribe_to_events`, `get_pending_events`, `unsubscr
 - `Browser` root properties: `instruments`, `sounds`, `drums`, `audio_effects`, `midi_effects`, `samples`, `clips`, `packs`, `user_library`, `current_project`, `max_for_live`, `plugins`.
 - State mutations must run on Ableton's main thread — use `schedule_message(0, fn)`.
 - `song.add_<type>_listener` / `song.remove_<type>_listener` work on any thread.
+- **Writing MIDI notes** (verified Live 12): `Clip.set_notes(tuple)` **appends** — it never clears
+  existing notes. `_add_notes_to_clip` therefore clears first via `remove_notes_extended(0, 128, 0.0,
+  1e6)` (legacy fallback: `select_all_notes` + `replace_selected_notes(())`) when `replace=True` (the
+  default) so the tool genuinely replaces; `replace=False` keeps the raw append behavior.
 - **Audio `Clip` properties** (verified Live 12): `is_audio_clip`, `warping` (bool), `warp_mode`
   (int — `0` Beats, `1` Tones, `2` Texture, `3` Re-Pitch, `4` Complex, `6` Complex Pro; `5` REX is
   not user-selectable), `pitch_coarse` (±48 st), `pitch_fine` (±49 ct), `gain` (0–1 **non-linear**,
