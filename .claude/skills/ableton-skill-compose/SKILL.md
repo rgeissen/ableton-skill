@@ -155,7 +155,7 @@ Pick an archetype for the genre, then keep it simple (modulated basslines rarely
 | Tool | Purpose | Key params |
 |---|---|---|
 | `create_clip` | Empty MIDI clip in a slot | `track_index`, `clip_index`, `length` (beats) |
-| `add_notes_to_clip` | Write notes (replaces all) | `track_index`, `clip_index`, `notes[]` |
+| `add_notes_to_clip` | Write notes (**replaces** by default; `replace=False` appends) | `track_index`, `clip_index`, `notes[]`, `replace?` |
 | `get_clip_notes` | Read existing notes | `track_index`, `clip_index` |
 | `remove_notes_from_clip` | Delete notes by pitch/time range | `track_index`, `clip_index`, `from_pitch?`, `pitch_span?`, `from_time?`, `time_span?` |
 | `set_clip_name` | Name a clip | `track_index`, `clip_index`, `name` |
@@ -171,7 +171,7 @@ Pick an archetype for the genre, then keep it simple (modulated basslines rarely
 ```json
 {"pitch": 60, "start_time": 0.0, "duration": 0.5, "velocity": 100, "mute": false}
 ```
-Pitch 60 = C3 in Live. `add_notes_to_clip` **replaces** all notes — use `get_clip_notes` first to preserve.
+Pitch 60 = C3 in Live. `add_notes_to_clip` **replaces** the clip's notes by default (clears first, then writes) — pass `replace=False` to append. To edit existing content, `get_clip_notes` → modify → write back.
 
 ---
 

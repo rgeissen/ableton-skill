@@ -17,20 +17,22 @@ if [[ ! -f "$SRC" ]]; then
 fi
 
 # Find installed AbletonMCP control-surface folders inside any Ableton Live app bundle.
-mapfile -t DESTS < <(find /Applications -type d -path "*/MIDI Remote Scripts/AbletonMCP" 2>/dev/null)
+# (portable: works on macOS's bash 3.2 — no mapfile)
+found=0
+while IFS= read -r DST; do
+  [[ -z "$DST" ]] && continue
+  found=1
+  echo "Deploying to: $DST"
+  cp "$SRC" "$DST/__init__.py"
+  rm -rf "$DST/__pycache__"
+  echo "  copied __init__.py ($(wc -l < "$SRC" | tr -d ' ') lines) + cleared bytecode"
+done < <(find /Applications -type d -path "*/MIDI Remote Scripts/AbletonMCP" 2>/dev/null)
 
-if [[ ${#DESTS[@]} -eq 0 ]]; then
+if [[ "$found" -eq 0 ]]; then
   echo "ERROR: no installed AbletonMCP folder found under /Applications/Ableton*.app" >&2
   echo "Is the Remote Script installed? Expected: <App>/Contents/App-Resources/MIDI Remote Scripts/AbletonMCP" >&2
   exit 1
 fi
-
-for DST in "${DESTS[@]}"; do
-  echo "Deploying to: $DST"
-  cp "$SRC" "$DST/__init__.py"
-  rm -rf "$DST/__pycache__"
-  echo "  copied __init__.py ($(wc -l < "$SRC") lines) + cleared bytecode"
-done
 
 echo
 echo "Done. Now RESTART Ableton (or reselect the AbletonMCP control surface) to load the changes."

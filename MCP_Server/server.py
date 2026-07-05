@@ -561,27 +561,38 @@ def create_clip(ctx: Context, track_index: int, clip_index: int, length: float =
 
 @mcp.tool()
 def add_notes_to_clip(
-    ctx: Context, 
-    track_index: int, 
-    clip_index: int, 
-    notes: List[Dict[str, Union[int, float, bool]]]
+    ctx: Context,
+    track_index: int,
+    clip_index: int,
+    notes: List[Dict[str, Union[int, float, bool]]],
+    replace: bool = True
 ) -> str:
     """
-    Add MIDI notes to a clip.
-    
+    Write MIDI notes to a clip.
+
+    By DEFAULT this REPLACES the clip's existing notes (they are cleared first), so writing is
+    deterministic and idempotent — the safe behavior for "read → modify → write back" and
+    "generate → write" workflows. Pass replace=False to APPEND to whatever is already in the clip.
+
+    (Note: Live's underlying set_notes() only ever appends; this tool clears first so "replace"
+    actually replaces. Requires the current AbletonMCP Remote Script — reload it if replace has no effect.)
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
     - notes: List of note dictionaries, each with pitch, start_time, duration, velocity, and mute
+    - replace: True (default) clears existing notes first; False appends
     """
     try:
         ableton = get_ableton_connection()
         result = ableton.send_command("add_notes_to_clip", {
             "track_index": track_index,
             "clip_index": clip_index,
-            "notes": notes
+            "notes": notes,
+            "replace": replace
         })
-        return f"Added {len(notes)} notes to clip at track {track_index}, slot {clip_index}"
+        verb = "Wrote" if replace else "Appended"
+        return f"{verb} {len(notes)} notes to clip at track {track_index}, slot {clip_index}"
     except Exception as e:
         logger.error(f"Error adding notes to clip: {str(e)}")
         return f"Error adding notes to clip: {str(e)}"

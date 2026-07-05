@@ -304,7 +304,8 @@ class AbletonMCP(ControlSurface):
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
                             notes = params.get("notes", [])
-                            result = self._add_notes_to_clip(track_index, clip_index, notes)
+                            replace = params.get("replace", True)
+                            result = self._add_notes_to_clip(track_index, clip_index, notes, replace)
                         elif command_type == "set_clip_name":
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
@@ -792,8 +793,10 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error creating clip: " + str(e))
             raise
     
-    def _add_notes_to_clip(self, track_index, clip_index, notes):
-        """Add MIDI notes to a clip"""
+    def _add_notes_to_clip(self, track_index, clip_index, notes, replace=True):
+        """Write MIDI notes to a clip. By default REPLACES the clip's existing notes (clears them
+        first) so the result is deterministic — the Live API's set_notes() on its own APPENDS and
+        never clears, which silently stacks notes. Pass replace=False to keep that append behavior."""
         try:
             if track_index < 0 or track_index >= len(self._song.tracks):
                 raise IndexError("Track index out of range")
@@ -820,12 +823,26 @@ class AbletonMCP(ControlSurface):
                 mute = note.get("mute", False)
                 
                 live_notes.append((pitch, start_time, duration, velocity, mute))
-            
+
+            # By default, clear existing notes first so this is a true REPLACE. set_notes()
+            # alone appends (never clears), which stacks notes onto whatever is already there.
+            if replace:
+                try:
+                    clip.remove_notes_extended(0, 128, 0.0, 1000000.0)
+                except Exception:
+                    # Fallback for older API surfaces.
+                    try:
+                        clip.select_all_notes()
+                        clip.replace_selected_notes(tuple())
+                    except Exception:
+                        pass
+
             # Add the notes
             clip.set_notes(tuple(live_notes))
-            
+
             result = {
-                "note_count": len(notes)
+                "note_count": len(notes),
+                "replaced": bool(replace)
             }
             return result
         except Exception as e:

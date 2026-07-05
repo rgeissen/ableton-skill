@@ -111,7 +111,7 @@ Track-building runs through five stages — each maps to a stage skill:
 ## Notes
 
 - `get_track_info` defaults to `include_clips=False, include_devices=False` — only request what you need
-- `add_notes_to_clip` **replaces all notes** — use `get_clip_notes` first to preserve existing content
+- `add_notes_to_clip` **replaces all notes by default** (it clears the clip first, then writes) — pass `replace=False` to append instead. To edit existing content, `get_clip_notes` → modify → write back. *(Requires the current Remote Script; if a rewrite stacks notes instead of replacing, the loaded script is stale — redeploy + restart Ableton.)*
 - Track indices are 0-based and shift when tracks are added/deleted — always re-read after mutations
 - Saving sets is not supported via the API — use Cmd+S in Ableton directly
 - `search_by_tags` reads Ableton's SQLite database directly — Live does not need to be running
