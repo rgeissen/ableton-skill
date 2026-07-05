@@ -188,9 +188,61 @@ bundle: `/Applications/Ableton Live 12*.app/Contents/App-Resources/MIDI Remote S
 Editing `AbletonMCP_Remote_Script/__init__.py` here has no effect until it is copied there and the
 stale `__pycache__` is cleared. Run **`./deploy_remote_script.sh`** (finds every installed app copy,
 copies the file, clears bytecode), then **restart Ableton** (or reselect the control surface in
-Preferences → Link/Tempo/MIDI). Server-only tools (`server.py`) do not need this — only Remote
+Preferences → Link/Tempo/MIDI). The script automatically detects and deploys to all Ableton instances
+(Live, Beta, etc.) on your system. Server-only tools (`server.py`) do not need this — only Remote
 Script changes. Symptom of a stale deploy: a new command returns `{"status":"error","message":
 "Unknown command: <name>"}` even though the code exists in the repo.
+
+---
+
+## Setting Up Claude Desktop Integration
+
+### Installation
+
+The package must be installed in editable mode so the MCP server can find the `MCP_Server` module:
+
+```bash
+pip install -e .
+```
+
+This creates the `ableton-skill` command in your Python environment's bin directory.
+
+### Claude Desktop Configuration
+
+Update `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "AbletonMCP": {
+      "command": "ableton-skill"
+    }
+  }
+}
+```
+
+The command uses your system PATH to locate `ableton-skill`, so it will work with any Python
+environment that has the package installed. Restart Claude Desktop after updating the config.
+
+### Troubleshooting
+
+If Claude Desktop cannot connect:
+
+1. **Verify the Ableton Remote Script is running:**
+   ```bash
+   lsof -i :9877
+   ```
+   Should show `Live` listening on port 9877.
+
+2. **Verify the MCP server executable works:**
+   ```bash
+   ableton-skill --help
+   ```
+
+3. **Check that Ableton has AbletonMCP selected:**
+   Open Preferences → Link/Tempo/MIDI and confirm "AbletonMCP" is checked in Control Surfaces.
+
+4. **Restart Ableton and Claude Desktop** if either was recently updated.
 
 ---
 

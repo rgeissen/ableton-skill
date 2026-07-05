@@ -212,7 +212,7 @@ class AbletonConnection:
             "start_playback", "stop_playback", "load_instrument_or_effect",
             "set_track_mixer", "set_track_mute", "set_track_solo",
             "duplicate_clip", "delete_clip", "delete_track",
-            "set_device_param", "undo", "save_set", "set_scale_mode",
+            "set_device_param", "undo", "set_scale_mode",
             "set_track_input_routing", "set_track_monitor", "fire_clip_slot",
             "start_synced_capture"
         ]

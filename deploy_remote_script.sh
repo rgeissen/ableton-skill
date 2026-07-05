@@ -19,20 +19,39 @@ fi
 # Find installed AbletonMCP control-surface folders inside any Ableton Live app bundle.
 # (portable: works on macOS's bash 3.2 — no mapfile)
 found=0
+line_count=$(wc -l < "$SRC" | tr -d ' ')
+
+# First, collect all destinations to show summary
+declare -a dests
 while IFS= read -r DST; do
   [[ -z "$DST" ]] && continue
-  found=1
-  echo "Deploying to: $DST"
-  cp "$SRC" "$DST/__init__.py"
-  rm -rf "$DST/__pycache__"
-  echo "  copied __init__.py ($(wc -l < "$SRC" | tr -d ' ') lines) + cleared bytecode"
-done < <(find /Applications -type d -path "*/MIDI Remote Scripts/AbletonMCP" 2>/dev/null)
+  dests+=("$DST")
+done < <(find /Applications -type d -path "*/MIDI Remote Scripts/AbletonMCP" 2>/dev/null | sort)
 
-if [[ "$found" -eq 0 ]]; then
+if [[ ${#dests[@]} -eq 0 ]]; then
   echo "ERROR: no installed AbletonMCP folder found under /Applications/Ableton*.app" >&2
   echo "Is the Remote Script installed? Expected: <App>/Contents/App-Resources/MIDI Remote Scripts/AbletonMCP" >&2
   exit 1
 fi
 
+# Show which Ableton instances will be updated
+echo "Found ${#dests[@]} Ableton installation(s):"
+for dst in "${dests[@]}"; do
+  app_path=$(echo "$dst" | sed 's|/Contents/App-Resources.*||')
+  app_name=$(basename "$app_path")
+  echo "  • $app_name"
+done
 echo
-echo "Done. Now RESTART Ableton (or reselect the AbletonMCP control surface) to load the changes."
+
+# Deploy to each one
+for DST in "${dests[@]}"; do
+  app_path=$(echo "$DST" | sed 's|/Contents/App-Resources.*||')
+  app_name=$(basename "$app_path")
+  echo "Deploying to: $app_name"
+  cp "$SRC" "$DST/__init__.py"
+  rm -rf "$DST/__pycache__"
+  echo "  ✓ copied __init__.py ($line_count lines) + cleared bytecode"
+done
+
+echo
+echo "Done. Now RESTART each Ableton instance (or reselect the AbletonMCP control surface in Preferences → Link/Tempo/MIDI) to load the changes."
