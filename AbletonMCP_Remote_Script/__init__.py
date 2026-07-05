@@ -243,6 +243,13 @@ class AbletonMCP(ControlSurface):
                 track_index = params.get("track_index", 0)
                 clip_index = params.get("clip_index", 0)
                 response["result"] = self._get_clip_file_path(track_index, clip_index)
+            elif command_type == "get_audio_clip_properties":
+                track_index = params.get("track_index", 0)
+                clip_index = params.get("clip_index", 0)
+                response["result"] = self._get_audio_clip_properties(track_index, clip_index)
+            elif command_type == "get_track_io":
+                track_index = params.get("track_index", 0)
+                response["result"] = self._get_track_io(track_index)
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name",
                                  "create_clip", "add_notes_to_clip", "set_clip_name",
@@ -271,7 +278,9 @@ class AbletonMCP(ControlSurface):
                                  "switch_to_arrangement_view",
                                  # Audio capture / export
                                  "set_track_input_routing", "set_track_monitor",
-                                 "fire_clip_slot", "fire_clips", "start_synced_capture"]:
+                                 "fire_clip_slot", "fire_clips", "start_synced_capture",
+                                 # Vocals / audio-clip editing
+                                 "set_audio_clip_properties", "set_track_input_channel"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
                 
@@ -486,6 +495,20 @@ class AbletonMCP(ControlSurface):
                         # Arrangement
                         elif command_type == "switch_to_arrangement_view":
                             result = self._switch_to_arrangement_view()
+                        # Vocals / audio-clip editing
+                        elif command_type == "set_audio_clip_properties":
+                            result = self._set_audio_clip_properties(
+                                params.get("track_index", 0),
+                                params.get("clip_index", 0),
+                                params.get("warping", None),
+                                params.get("warp_mode", None),
+                                params.get("pitch_coarse", None),
+                                params.get("pitch_fine", None),
+                                params.get("gain", None))
+                        elif command_type == "set_track_input_channel":
+                            result = self._set_track_input_channel(
+                                params.get("track_index", 0),
+                                params.get("channel", None))
 
                         # Put the result in the queue
                         response_queue.put({"status": "success", "result": result})
@@ -2203,6 +2226,162 @@ class AbletonMCP(ControlSurface):
             return {"has_clip": False, "file_path": None}
         except Exception as e:
             self.log_message("Error getting clip file path: " + str(e))
+            raise
+
+    # --- Vocals / audio-clip editing -------------------------------------
+
+    # Live.Clip.Clip.warp_mode integer <-> human name. (REX=5 is not user-selectable.)
+    _WARP_MODE_NAMES = {0: "Beats", 1: "Tones", 2: "Texture", 3: "Re-Pitch",
+                        4: "Complex", 5: "REX", 6: "Complex Pro"}
+    _WARP_MODE_LOOKUP = {"beats": 0, "tones": 1, "texture": 2, "repitch": 3,
+                         "re-pitch": 3, "re pitch": 3, "complex": 4, "rex": 5,
+                         "complexpro": 6, "complex pro": 6, "pro": 6}
+
+    def _resolve_session_clip(self, track_index, clip_index):
+        if track_index < 0 or track_index >= len(self._song.tracks):
+            raise IndexError("Track index out of range")
+        track = self._song.tracks[track_index]
+        if clip_index < 0 or clip_index >= len(track.clip_slots):
+            raise IndexError("Clip slot index out of range")
+        slot = track.clip_slots[clip_index]
+        if not slot.has_clip:
+            raise Exception("No clip in slot %d of track %d" % (clip_index, track_index))
+        return slot.clip
+
+    def _get_audio_clip_properties(self, track_index, clip_index):
+        """Read warp/pitch/gain of an audio clip (for vocal tuning, warping, gain-staging)."""
+        try:
+            clip = self._resolve_session_clip(track_index, clip_index)
+            is_audio = bool(getattr(clip, "is_audio_clip", False))
+            result = {"track_index": track_index, "clip_index": clip_index,
+                      "name": clip.name, "is_audio_clip": is_audio}
+            if not is_audio:
+                result["note"] = "MIDI clip — warp/pitch/gain apply to audio clips only."
+                return result
+            wm = getattr(clip, "warp_mode", None)
+            result.update({
+                "warping": bool(getattr(clip, "warping", False)),
+                "warp_mode": wm,
+                "warp_mode_name": self._WARP_MODE_NAMES.get(wm, str(wm)),
+                "pitch_coarse": getattr(clip, "pitch_coarse", None),
+                "pitch_fine": getattr(clip, "pitch_fine", None),
+                "gain": getattr(clip, "gain", None),
+                "gain_display": getattr(clip, "gain_display_string", None),
+                "length": getattr(clip, "length", None),
+                "file_path": getattr(clip, "file_path", None),
+            })
+            return result
+        except Exception as e:
+            self.log_message("Error getting audio clip properties: " + str(e))
+            raise
+
+    def _set_audio_clip_properties(self, track_index, clip_index, warping,
+                                   warp_mode, pitch_coarse, pitch_fine, gain):
+        """Set warp/pitch/gain on an audio clip. Only the provided (non-None) params change.
+        warp_mode accepts an int or a name (e.g. "Complex Pro" — best for vocals).
+        pitch_coarse = transpose in semitones (-48..48); pitch_fine = cents (-49..49)."""
+        try:
+            clip = self._resolve_session_clip(track_index, clip_index)
+            if not getattr(clip, "is_audio_clip", False):
+                raise Exception("MIDI clip — warp/pitch/gain apply to audio clips only.")
+            changed = {}
+            if warp_mode is not None:
+                if isinstance(warp_mode, str):
+                    key = warp_mode.strip().lower()
+                    if key not in self._WARP_MODE_LOOKUP:
+                        raise Exception("Unknown warp_mode '%s'. Options: %s"
+                                        % (warp_mode, ", ".join(sorted(set(self._WARP_MODE_NAMES.values())))))
+                    wm = self._WARP_MODE_LOOKUP[key]
+                else:
+                    wm = int(warp_mode)
+                clip.warping = True          # warp_mode is only meaningful when warping is on
+                clip.warp_mode = wm
+                changed["warp_mode"] = wm
+            if warping is not None:
+                clip.warping = bool(warping)
+                changed["warping"] = bool(warping)
+            if pitch_coarse is not None:
+                clip.pitch_coarse = int(pitch_coarse)
+                changed["pitch_coarse"] = int(pitch_coarse)
+            if pitch_fine is not None:
+                clip.pitch_fine = float(pitch_fine)
+                changed["pitch_fine"] = float(pitch_fine)
+            if gain is not None:
+                clip.gain = float(gain)
+                changed["gain"] = float(gain)
+            return {"track_index": track_index, "clip_index": clip_index,
+                    "changed": changed,
+                    "warp_mode_name": self._WARP_MODE_NAMES.get(getattr(clip, "warp_mode", None), None),
+                    "pitch_coarse": getattr(clip, "pitch_coarse", None),
+                    "pitch_fine": getattr(clip, "pitch_fine", None),
+                    "gain_display": getattr(clip, "gain_display_string", None)}
+        except Exception as e:
+            self.log_message("Error setting audio clip properties: " + str(e))
+            raise
+
+    def _get_track_io(self, track_index):
+        """Read a track's input routing + monitor + arm, and the AVAILABLE input routing
+        types & channels — so a mic/vocal record chain can be set up discoverably."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+
+            def dn(x):
+                return getattr(x, "display_name", None) if x is not None else None
+
+            return {
+                "track_index": track_index, "name": track.name,
+                "can_be_armed": bool(getattr(track, "can_be_armed", False)),
+                "arm": bool(getattr(track, "arm", False)) if getattr(track, "can_be_armed", False) else False,
+                "current_monitoring_state": getattr(track, "current_monitoring_state", None),
+                "input_routing_type": dn(getattr(track, "input_routing_type", None)),
+                "input_routing_channel": dn(getattr(track, "input_routing_channel", None)),
+                "available_input_routing_types": [dn(t) for t in getattr(track, "available_input_routing_types", [])],
+                "available_input_routing_channels": [dn(c) for c in getattr(track, "available_input_routing_channels", [])],
+            }
+        except Exception as e:
+            self.log_message("Error getting track IO: " + str(e))
+            raise
+
+    def _set_track_input_channel(self, track_index, channel):
+        """Select a track's input routing CHANNEL (e.g. a mono mic input "1" / "2").
+        Pass channel=None to just list the available channels. Combine with
+        set_track_input_routing("Ext. In") + set_track_monitor + set_track_arm to record a mic."""
+        try:
+            if track_index < 0 or track_index >= len(self._song.tracks):
+                raise IndexError("Track index out of range")
+            track = self._song.tracks[track_index]
+            available = list(getattr(track, "available_input_routing_channels", []))
+            names = [getattr(c, "display_name", str(c)) for c in available]
+            if channel is None:
+                cur = getattr(track, "input_routing_channel", None)
+                return {"track_index": track_index, "available_input_channels": names,
+                        "current": getattr(cur, "display_name", None) if cur else None}
+            match = None
+            if isinstance(channel, int):
+                if 0 <= channel < len(available):
+                    match = available[channel]
+            else:
+                cl = str(channel).strip().lower()
+                for c in available:
+                    if getattr(c, "display_name", "").strip().lower() == cl:
+                        match = c
+                        break
+                if match is None:
+                    for c in available:
+                        if cl in getattr(c, "display_name", "").strip().lower():
+                            match = c
+                            break
+            if match is None:
+                return {"error": "Input channel not found",
+                        "available_input_channels": names}
+            track.input_routing_channel = match
+            return {"track_index": track_index,
+                    "input_routing_channel": getattr(track.input_routing_channel, "display_name", None),
+                    "available_input_channels": names}
+        except Exception as e:
+            self.log_message("Error setting track input channel: " + str(e))
             raise
 
     def _fire_clip_slot(self, track_index, clip_index):

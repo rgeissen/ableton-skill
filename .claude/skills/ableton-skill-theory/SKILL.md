@@ -104,6 +104,7 @@ set the key in Live's Scale panel first for hands-free context.
 | Minor pop | `[1, 6, 3, 7]` | Indie, singer-songwriter |
 | Jazz ii–V–I | `[2, 5, 1]` | Jazz (works in major or minor) |
 | Blues turnaround | `[1, 4, 1, 5, 4, 1]` | Blues |
+| 12-bar blues | `[1,1,1,1, 4,4,1,1, 5,4,1,5]` (1 bar each) | Blues, rock'n'roll |
 | Andalusian cadence | `[1, 7, 6, 5]` (phrygian) | Flamenco, dark electronic |
 | Epic/cinematic | `[1, 6, 4, 5]` | Trailer, film |
 | Pachelbel | `[1, 5, 6, 3, 4, 1, 4, 5]` | Classical, baroque-inspired |
@@ -112,6 +113,106 @@ set the key in Live's Scale panel first for hands-free context.
 | Coltrane changes | `[1, 3, 6, 4, ...]` | Advanced jazz |
 
 **Tip:** `bars_per_chord=2.0` gives each chord 2 bars — good for slow ballads. `bars_per_chord=0.5` makes a rapid 2-chord-per-bar vamp.
+
+### Named dance-track progressions (all minor key, degrees)
+
+Real reference progressions (from *Secrets of Dance Music Production*) — feed straight to `generate_chord_progression(degrees=[...], scale_name="minor")`:
+
+| Track | Degrees |
+|---|---|
+| Avicii — *Levels* | `[1, 3, 7, 6]` |
+| Nicky Romero — *Like Home* | `[1, 7, 3, 6]` |
+| Swedish House Mafia — *Don't You Worry Child* | `[7, 1, 6, 6]` |
+| Disclosure — *You & Me* | `[4, 7, 1, 1]` |
+| Burial — *Archangel* | `[6, 5, 4, 4]` |
+| Black Box — *Ride On Time* | `[1, 3, 6, 7]` |
+| Daft Punk — *Around The World* | `[5, 6, 1, 1]` |
+
+Surefire floor-fillers: **`vi–I`** and **`IV–V–I`**. Resolution usually lands on the tonic — *delaying, denying, or surprising* it (deceptive cadence, out-of-key stab) is more powerful than always resolving.
+
+### Chord development for dance genres
+
+- **maj7** (root, +4, +7, +11) — deep/disco house, jazzy. **min7** (root, +3, +7, +10) — dark techno/dub stabs. **9ths** are easier than 7ths (same added note over major or minor). **min9** — dark reverbed techno. **sus2/sus4** (drop the 3rd) — unresolved tension. **add9/add2** (no 7th) — dark, oppressive (techno/D&B).
+- **Sampled-triad-in-key rule:** a chord *shape* transposed across the keys only stays in key on **I, IV, V** roots (9th chords only on **I & IV**). Breaking this deliberately gives the classic **out-of-key old-school stab** flavour — often desirable, not wrong.
+
+---
+
+## Cadences, Substitutions & Borrowing
+
+The practical rule-set for writing progressions that resolve — or that hang, endlessly, for a loop.
+
+**Magic chords: `1 · 4 · 5 · 6`.** These four degrees carry most electronic/pop harmony.
+
+### Harmonic function — the engine (T · SD · D)
+
+Every diatonic chord belongs to one of three **functional areas**. Harmony is the motion
+*between* areas — this is *why* the substitution groups below work (each area's chords are
+interchangeable):
+
+| Area | Chords (degrees) | Feeling |
+|---|---|---|
+| **Tonic (T)** | **1 · 3 · 6** | Home, rest, resolved |
+| **Subdominant (SD)** | **2 · 4** | Departure, motion away (pre-dominant) |
+| **Dominant (D)** | **5 · 7** | Tension, wants to resolve to T |
+
+The two fundamental motions: **T → D → T** (simplest tension/release) and the full
+**T → SD → D → T** (departure → build → tension → home). Every classic progression is a
+decoration of these — e.g. `1 6 4 5` = T–T–SD–D, `1 4 5 1` = T–SD–D–T.
+
+### Cadences — how a phrase lands (Book 3 taxonomy)
+
+| Cadence | Motion | Effect |
+|---|---|---|
+| **Perfect Authentic (PAC)** | `5 → 1`, both root position, melody ends on 1 | Strongest resolution — full stop |
+| **Imperfect Authentic (IAC)** | `5 → 1` but inverted or melody not on 1 | Softer landing |
+| **Leading-tone IAC** | `7° → 1` | Gentle authentic resolution |
+| **Plagal** | `4 → 1` | "Amen", warm resolution |
+| **Half** | `any → 5` | Hangs, unresolved — *ideal for loops* |
+| **Deceptive** | `5 → 6` | Sets up 1, resolves to 6 instead — surprise, keeps energy going |
+| **SD → D** | e.g. `4 → 5` | Builds tension into a following resolution |
+
+**Rules for sweet progressions:** ① nearly always end on a cadence · ② start on any degree, but
+**1 is always safe** · ③ put anything in the middle · ④–⑥ substitute freely (below) · ⑦ borrow the
+same degree from any mode sharing the tonic.
+
+**Half-cadences (suspenseful / *endless* — ideal for looping club tracks):** end on **any → 5**,
+`1 → 4`, or `5 → 4`. The progression **must start on `1`** so the loop's return home resolves the
+suspense. A **deceptive** `5 → 6` is another great loop engine — it denies the resolution every pass.
+
+**In-scale substitutions** — swap any degree for its functional cousin (same area, shared notes):
+| Swap group | Interchangeable degrees |
+|---|---|
+| Tonic family | **1 ↔ 3 ↔ 6** (treat a 3 as "really a 1 or 6") |
+| Subdominant | **2 ↔ 4** (treat a 2 as "really a 4") |
+| Dominant | **5 ↔ 7** (treat a 7 as "really a 5") |
+
+**Borrowing & modal interchange** — take a chord from *outside* the current scale:
+- **Chord borrowing / modulation:** pull a degree from the **parallel** scale (same tonic, e.g. C major → C minor). When a borrowed chord plays, use *that mode's* scale tones for the melody over it.
+- **Mediant substitution:** major/minor chords a mediant / sub-mediant (a third) away.
+- **Neo-Riemannian:** chords that are physically close (share notes) regardless of any scale.
+- In Scaler these map to **Modulation**, **Mediant**, and **Neo-Riemannian** modes.
+
+**Advanced tension (jazz / reharmonization):**
+- **Secondary dominant** — borrow the *dominant of a non-tonic chord* to tonicise it. A `dom7` a
+  fifth above the target (written `V/x`), e.g. before the `2` chord play `V/2` (its own V7). Adds a
+  strong pull to any degree, not just the tonic.
+- **Tritone substitution** — replace a `dom7` (V7) with the dom7 a **tritone** (6 semitones) away;
+  they share the same guide-tones, so it resolves the same way with a chromatic bassline.
+- **Reharmonization** — keep the melody, change the chords under it (swap within an area, add a
+  secondary dominant, or reharmonise the whole phrase). The fastest way to vary a repeated section.
+
+**Chord extensions & alterations** (colour beyond triads — several already in the `chord_type` table):
+- **add** (add9), **7ths**, **extended** 9 / 11 / 13 (stack more thirds), **sus** (2/4 replacing the 3rd),
+  **omit** (drop the 5th or root for space), **alterations** (♯5/♭5/♯9/♭9 for bite).
+- **Slash chords / inversions** — put a non-root chord tone in the bass (`C/E`, `C/G`) for smoother
+  bass movement and voice-leading between chords.
+
+**Chord-quality shortcuts:** diminished = 5th a semitone **down** · augmented = 5th a semitone **up**
+· suspended = replace the 3rd with a 4th (or 2nd) · relative minor = **3 semitones down** from the major.
+
+**Parallel harmony (melodic-house signature):** transpose an entire chord *shape* up/down by a fixed
+interval so every note moves the same amount. Ignores voice-leading — gives that "alien", emotive
+Anjunadeep colour, and is trivial to program (one shape, shifted).
 
 ---
 

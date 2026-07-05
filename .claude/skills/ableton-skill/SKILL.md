@@ -43,13 +43,38 @@ Load the right skill for the task. Each skill is focused and only enters context
 | Stage | Skill | When to invoke |
 |---|---|---|
 | **Compose** | `ableton-skill-compose` | Writing tracks, clips, MIDI notes, generating chords/bass/melody |
-| **Sounds** | `ableton-skill-sounds` | Browser search, loading instruments/effects, tweaking device parameters |
-| **Arrange** | `ableton-skill-arrange` | Scene management, song structure, Arrangement timeline, recording |
+| **Sounds** | `ableton-skill-sounds` | Browser search, loading instruments/effects, sample-to-drum-pad kit building, device parameters |
+| **Arrange** | `ableton-skill-arrange` | Scene management, song structure, Arrangement timeline, recording, launch quantization, audio export/bounce |
 | **Mix** | `ableton-skill-mix` | Track levels, panning, mute/solo, return tracks, sends, EQ/compression |
 | **Theory** | `ableton-skill-theory` | Deep music theory — scales, chord types, progression recipes, genre patterns |
 
 For most tasks, load **one stage skill** alongside this base skill. Multi-stage tasks
 (e.g. compose + mix) load two. Never load all skills preemptively.
+
+**Vocals** span three stages: **record** the take (mic input chain → `ableton-skill-arrange`),
+**tune/warp/chop** the audio clip (→ `ableton-skill-sounds`), and **process** it (EQ/comp/de-ess/
+reverb → `ableton-skill-mix`). Load whichever stage the request is about.
+
+---
+
+## Production Workflow (the arc)
+
+Track-building runs through five stages — each maps to a stage skill:
+
+```
+1. Basic Beat   → core groove: Chords · Melody · Bass · Drums   (compose)
+2. Sound Design → replace / tweak / layer / process the sounds  (sounds)
+3. Arrangement  → sections + energy curve, avoid the loop trap  (arrange)
+4. Mixing       → EQ resonances → balance → spectrum → glue     (mix)
+5. Mastering    → M/S EQ → glue compress → limiter              (mix)
+```
+
+**Guiding principles (apply throughout):**
+- **Rule of 3 or 4** — lock a strong 8-bar loop from just Chords, Melody, Bass, Drums before adding more.
+- **Use a reference track** — import one, map its sections and energy, match it.
+- **Limited sound design** — Replace → Tweak → Layer → Process, rather than endless preset hunting.
+- **Avoid the 8-bar loop trap** — a loop is not a song; change/evolve an element every 8 bars.
+- **Default genre context** — deep/melodic house: 120–128 BPM (125 sweet spot), minor / min7 keys.
 
 ---
 

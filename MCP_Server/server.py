@@ -2712,6 +2712,109 @@ def get_clip_file_path(ctx: Context, track_index: int, clip_index: int = 0) -> s
 
 
 @mcp.tool()
+def get_audio_clip_properties(ctx: Context, track_index: int, clip_index: int = 0) -> str:
+    """
+    Read the warp / pitch / gain of an AUDIO clip in a Session slot — the controls that matter for
+    vocals and any sampled audio (tuning, time-stretch algorithm, level).
+
+    Returns: is_audio_clip, warping (bool), warp_mode (int) + warp_mode_name, pitch_coarse (semitones),
+    pitch_fine (cents), gain (0–1 normalised) + gain_display (dB string), length, file_path.
+    Always read first, then set with set_audio_clip_properties.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_audio_clip_properties", {
+            "track_index": track_index, "clip_index": clip_index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting audio clip properties: {str(e)}")
+        return f"Error getting audio clip properties: {str(e)}"
+
+
+@mcp.tool()
+def set_audio_clip_properties(ctx: Context, track_index: int, clip_index: int = 0,
+                              warping: bool = None, warp_mode: str = None,
+                              pitch_coarse: int = None, pitch_fine: float = None,
+                              gain: float = None) -> str:
+    """
+    Set warp / pitch / gain on an AUDIO clip. Only the parameters you pass are changed. This is the
+    core of vocal editing over MCP — tuning, time-stretch feel, and gain-staging a recorded/imported vocal.
+
+    Parameters (all optional except the clip location):
+    - warping:      True/False. Turn Warp on to lock the clip to the song tempo.
+    - warp_mode:    time-stretch algorithm by name or int. "Complex Pro" = best for VOCALS (and tonal
+                    material); "Complex" for full mixes; "Texture"/"Tones" for pads/atmos; "Re-Pitch" ties
+                    pitch to tempo (tape/chipmunk); "Beats" for drums/loops. (Setting warp_mode turns Warp on.)
+    - pitch_coarse: TRANSPOSE in semitones (-48..48) — tune a vocal into key, or pitch a chop.
+    - pitch_fine:   fine tune in cents (-49..49).
+    - gain:         clip gain, 0.0–1.0 normalised and NON-linear (~0.4 ≈ 0 dB unity, ~0.6 ≈ +8 dB);
+                    read gain_display in the result for the actual dB value.
+
+    Vocal tips: warp_mode="Complex Pro" keeps formants natural when stretched; pull pitch to fit the key;
+    for a chipmunk/alien effect use warp_mode="Re-Pitch". Read with get_audio_clip_properties first.
+    """
+    try:
+        ableton = get_ableton_connection()
+        params = {"track_index": track_index, "clip_index": clip_index}
+        if warping is not None:
+            params["warping"] = warping
+        if warp_mode is not None:
+            params["warp_mode"] = warp_mode
+        if pitch_coarse is not None:
+            params["pitch_coarse"] = pitch_coarse
+        if pitch_fine is not None:
+            params["pitch_fine"] = pitch_fine
+        if gain is not None:
+            params["gain"] = gain
+        result = ableton.send_command("set_audio_clip_properties", params)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting audio clip properties: {str(e)}")
+        return f"Error setting audio clip properties: {str(e)}"
+
+
+@mcp.tool()
+def get_track_io(ctx: Context, track_index: int) -> str:
+    """
+    Read a track's input routing, monitor state, and arm — plus the AVAILABLE input routing types and
+    channels. Use this to discover how to set up a live vocal/mic recording chain (find the "Ext. In"
+    routing type and the mic's input channel), or to inspect a resampling capture track.
+    """
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("get_track_io", {"track_index": track_index})
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting track IO: {str(e)}")
+        return f"Error getting track IO: {str(e)}"
+
+
+@mcp.tool()
+def set_track_input_channel(ctx: Context, track_index: int, channel: str = None) -> str:
+    """
+    Select a track's input routing CHANNEL — e.g. the mono mic input "1" / "2" of the audio interface.
+    Pass channel=None (or omit) to just LIST the available channels. Match is by display name (exact or
+    contains) or by integer index.
+
+    Vocal mic-record chain:
+      create_audio_track() → set_track_input_routing(track, "Ext. In") → set_track_input_channel(track, "1")
+      → set_track_monitor(track, 0)  (In, to hear yourself)  → set_track_arm(track, True)
+      → fire_clip_slot(track, slot)  (starts recording)  → ... perform ... → stop_playback()
+      → get_clip_file_path / get_audio_clip_properties to inspect the take.
+    """
+    try:
+        ableton = get_ableton_connection()
+        params = {"track_index": track_index}
+        if channel is not None:
+            params["channel"] = channel
+        result = ableton.send_command("set_track_input_channel", params)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error setting track input channel: {str(e)}")
+        return f"Error setting track input channel: {str(e)}"
+
+
+@mcp.tool()
 def export_audio(ctx: Context, bars: int = 16, scene_index: int = 0) -> str:
     """
     Capture the currently-playing Session audio to a WAV via real-time RESAMPLING, and return the recorded file path.

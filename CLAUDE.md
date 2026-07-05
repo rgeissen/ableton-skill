@@ -167,6 +167,26 @@ Three thin wrapper tools: `subscribe_to_events`, `get_pending_events`, `unsubscr
 - `Browser` root properties: `instruments`, `sounds`, `drums`, `audio_effects`, `midi_effects`, `samples`, `clips`, `packs`, `user_library`, `current_project`, `max_for_live`, `plugins`.
 - State mutations must run on Ableton's main thread — use `schedule_message(0, fn)`.
 - `song.add_<type>_listener` / `song.remove_<type>_listener` work on any thread.
+- **Audio `Clip` properties** (verified Live 12): `is_audio_clip`, `warping` (bool), `warp_mode`
+  (int — `0` Beats, `1` Tones, `2` Texture, `3` Re-Pitch, `4` Complex, `6` Complex Pro; `5` REX is
+  not user-selectable), `pitch_coarse` (±48 st), `pitch_fine` (±49 ct), `gain` (0–1 **non-linear**,
+  ~0.4 ≈ 0 dB), `gain_display_string`. Setting `warp_mode` requires `warping = True`.
+- **Track input routing** (verified): `input_routing_type` / `input_routing_channel` are *objects*
+  (set to a member of `available_input_routing_types` / `available_input_routing_channels`, matched
+  by `.display_name`); `current_monitoring_state` (0 In / 1 Auto / 2 Off), `can_be_armed`, `arm`.
+
+---
+
+## Deploying the Remote Script (IMPORTANT)
+
+**Ableton does NOT load the Remote Script from this repo.** It loads a *copy* baked into the app
+bundle: `/Applications/Ableton Live 12*.app/Contents/App-Resources/MIDI Remote Scripts/AbletonMCP/`.
+Editing `AbletonMCP_Remote_Script/__init__.py` here has no effect until it is copied there and the
+stale `__pycache__` is cleared. Run **`./deploy_remote_script.sh`** (finds every installed app copy,
+copies the file, clears bytecode), then **restart Ableton** (or reselect the control surface in
+Preferences → Link/Tempo/MIDI). Server-only tools (`server.py`) do not need this — only Remote
+Script changes. Symptom of a stale deploy: a new command returns `{"status":"error","message":
+"Unknown command: <name>"}` even though the code exists in the repo.
 
 ---
 
